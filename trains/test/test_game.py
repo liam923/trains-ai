@@ -1,8 +1,9 @@
+from random import Random
 from typing import Callable, List, Tuple
 
 import pytest
 
-from trains.game.action import Action
+from trains.game.action import Action, InitialDealAction
 from trains.game.box import Box, Player
 from trains.game.game_actor import SimulatedGameActor
 from trains.game.player_actor import RandomActor
@@ -10,20 +11,29 @@ from trains.game.turn import TurnState
 
 
 @pytest.mark.parametrize(
-    "box_maker, player_count", [(Box.small, 2), (Box.standard, 2), (Box.standard, 4)]
+    "box_maker, player_count",
+    [
+        (Box.small, 2),
+        # (Box.standard, 2),
+        # (Box.standard, 4),
+    ],
 )
-@pytest.mark.parametrize("game_index", list(range(20)))
+@pytest.mark.parametrize("seed", [1])
 def test_gameplay(
-    box_maker: Callable[[List[Player]], Box], player_count: int, game_index: int
+    box_maker: Callable[[List[Player], Random], Box], player_count: int, seed: int
 ):
     """
     Test playing a multitude of games with random moves and check that no obvious
     errors occur.
     """
+    seeder = Random(seed)
     players = [Player(str(i + 1)) for i in range(player_count)]
-    box = box_maker(players)
-    player_actors = {player: RandomActor.make(box, player) for player in players}
-    game = SimulatedGameActor.make(box)
+    box = box_maker(players, Random(seeder.random()))
+    player_actors = {
+        player: RandomActor.make(box, player, randomizer=Random(seeder.random()))
+        for player in players
+    }
+    game = SimulatedGameActor.make(box, seed=seeder.random())
 
     actors: List[Actor] = list(player_actors.values()) + [game]  # type: ignore
     history: List[Tuple[TurnState, Action]] = []

@@ -1,9 +1,9 @@
 from __future__ import annotations
 
 import argparse
-import random
+from random import Random
 from abc import ABC
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Optional, Callable, FrozenSet, TypeVar, Type
 
 import trains.game.action as gaction
@@ -13,7 +13,7 @@ from trains.game.action import Action
 from trains.game.actor import Actor
 from trains.game.box import Color, City, Box, Player, TrainCards
 from trains.game.state import State
-
+from trains.mypy_util import cache
 
 _PlayerActor = TypeVar("_PlayerActor", bound="PlayerActor")
 
@@ -244,10 +244,25 @@ class UserActor(PlayerActor):
         return self._parser(action_str)
 
 
+@dataclass
 class RandomActor(PlayerActor):
+    randomizer: Random = field(default_factory=Random)
+
+    @classmethod
+    def make(
+        cls, box: Box, player: Player, randomizer: Optional[Random] = None
+    ) -> RandomActor:
+        state = State.make(box, player)
+        return cls(
+            box=box,
+            state=state,
+            turn_state=state.turn_state,
+            randomizer=Random() if randomizer is None else randomizer,
+        )
+
     def get_action(self) -> Action:
         all_actions = list(self.state.get_legal_actions())
-        return random.choice(all_actions).action
+        return self.randomizer.choice(all_actions).action
 
 
 class AIActor(PlayerActor):

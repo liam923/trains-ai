@@ -4,6 +4,7 @@ import uuid
 from collections import defaultdict
 from copy import deepcopy
 from dataclasses import dataclass, field
+from random import Random
 from typing import (
     FrozenSet,
     Optional,
@@ -50,7 +51,7 @@ class Route:
     cities: FrozenSet[City]
     color: Optional[Color]  # None represents a gray route (any color can be used)
     length: int
-    id: uuid.UUID = field(default_factory=lambda: uuid.uuid4())
+    id: bytes  # a unique id for the Route
 
 
 @dataclass(frozen=True)
@@ -60,7 +61,9 @@ class Board:
     double_routes: HashableDict[Route, FrozenSet[Route]]
 
     @classmethod
-    def make(cls, routes: List[Tuple[str, str, Optional[str], int]]) -> Board:
+    def make(
+        cls, routes: List[Tuple[str, str, Optional[str], int]], randomizer: Random
+    ) -> Board:
         cities = {
             city_name: City(city_name) for route in routes for city_name in route[0:2]
         }
@@ -70,6 +73,7 @@ class Board:
                 cities=frozenset((cities[city1], cities[city2])),
                 color=colors[color],
                 length=length,
+                id=randomizer.randbytes(16),
             )
             for city1, city2, color, length in routes
         ]
@@ -103,15 +107,19 @@ class Board:
 class DestinationCard:
     cities: FrozenSet[City]
     value: int
-    id: uuid.UUID = field(default_factory=lambda: uuid.uuid4())
+    id: bytes  # a unique id for the Route
 
     @property
     def cities_list(self) -> List[City]:
         return list(self.cities)
 
     @classmethod
-    def make(cls, city1: str, city2: str, value: int) -> DestinationCard:
-        return cls(frozenset([City(city1), City(city2)]), value)
+    def make(
+        cls, city1: str, city2: str, value: int, randomizer: Random
+    ) -> DestinationCard:
+        return cls(
+            frozenset([City(city1), City(city2)]), value, id=randomizer.randbytes(16)
+        )
 
 
 TrainCard = Optional[Color]  # None represents a wildcard
@@ -228,7 +236,10 @@ class Box:
         return frozenset(self.train_cards.keys()) - {None}  # type: ignore
 
     @classmethod
-    def standard(cls, players: List[Player]) -> Box:
+    def standard(
+        cls, players: List[Player], randomizer: Optional[Random] = None
+    ) -> Box:
+        randomizer = Random() if randomizer is None else randomizer
         return Box(
             board=Board.make(
                 [
@@ -332,41 +343,44 @@ class Box:
                     ("New-York", "Montreal", "blue", 3),
                     ("Montreal", "Boston", None, 2),
                     ("Montreal", "Boston", None, 2),
-                ]
+                ],
+                randomizer=randomizer,
             ),
             players=tuple(players),
             destination_cards=frozenset(
                 [
-                    DestinationCard.make("Helena", "Los-Angeles", 8),
-                    DestinationCard.make("Portland", "Nashville", 17),
-                    DestinationCard.make("Portland", "Phoenix", 11),
-                    DestinationCard.make("Montreal", "Atlanta", 9),
-                    DestinationCard.make("Montreal", "New-Orleans", 13),
-                    DestinationCard.make("Winnipeg", "Little-Rock", 11),
-                    DestinationCard.make("Sault-St.-Marie", "Oklahoma-City", 9),
-                    DestinationCard.make("Boston", "Miami", 12),
-                    DestinationCard.make("San-Francisco", "Atlanta", 17),
-                    DestinationCard.make("Toronto", "Miami", 10),
-                    DestinationCard.make("Winnipeg", "Houston", 12),
-                    DestinationCard.make("Chicago", "New-Orleans", 7),
-                    DestinationCard.make("Los-Angeles", "Miami", 20),
-                    DestinationCard.make("Sault-St.-Marie", "Nashville", 8),
-                    DestinationCard.make("New-York", "Atlanta", 6),
-                    DestinationCard.make("Duluth", "Houston", 8),
-                    DestinationCard.make("Calgary", "Salt-Lake-City", 7),
-                    DestinationCard.make("Denver", "El-Paso", 4),
-                    DestinationCard.make("Duluth", "El-Paso", 10),
-                    DestinationCard.make("Los-Angeles", "New-York", 21),
-                    DestinationCard.make("Calgary", "Phoenix", 13),
-                    DestinationCard.make("Chicago", "Santa-Fe", 9),
-                    DestinationCard.make("Denver", "Pittsburgh", 11),
-                    DestinationCard.make("Dallas", "New-York", 11),
-                    DestinationCard.make("Vancouver", "Santa-Fe", 13),
-                    DestinationCard.make("Los-Angeles", "Chicago", 16),
-                    DestinationCard.make("Kansas-City", "Houston", 5),
-                    DestinationCard.make("Seattle", "Los-Angeles", 9),
-                    DestinationCard.make("Vancouver", "Montreal", 20),
-                    DestinationCard.make("Seattle", "New-York", 22),
+                    DestinationCard.make("Helena", "Los-Angeles", 8, randomizer),
+                    DestinationCard.make("Portland", "Nashville", 17, randomizer),
+                    DestinationCard.make("Portland", "Phoenix", 11, randomizer),
+                    DestinationCard.make("Montreal", "Atlanta", 9, randomizer),
+                    DestinationCard.make("Montreal", "New-Orleans", 13, randomizer),
+                    DestinationCard.make("Winnipeg", "Little-Rock", 11, randomizer),
+                    DestinationCard.make(
+                        "Sault-St.-Marie", "Oklahoma-City", 9, randomizer
+                    ),
+                    DestinationCard.make("Boston", "Miami", 12, randomizer),
+                    DestinationCard.make("San-Francisco", "Atlanta", 17, randomizer),
+                    DestinationCard.make("Toronto", "Miami", 10, randomizer),
+                    DestinationCard.make("Winnipeg", "Houston", 12, randomizer),
+                    DestinationCard.make("Chicago", "New-Orleans", 7, randomizer),
+                    DestinationCard.make("Los-Angeles", "Miami", 20, randomizer),
+                    DestinationCard.make("Sault-St.-Marie", "Nashville", 8, randomizer),
+                    DestinationCard.make("New-York", "Atlanta", 6, randomizer),
+                    DestinationCard.make("Duluth", "Houston", 8, randomizer),
+                    DestinationCard.make("Calgary", "Salt-Lake-City", 7, randomizer),
+                    DestinationCard.make("Denver", "El-Paso", 4, randomizer),
+                    DestinationCard.make("Duluth", "El-Paso", 10, randomizer),
+                    DestinationCard.make("Los-Angeles", "New-York", 21, randomizer),
+                    DestinationCard.make("Calgary", "Phoenix", 13, randomizer),
+                    DestinationCard.make("Chicago", "Santa-Fe", 9, randomizer),
+                    DestinationCard.make("Denver", "Pittsburgh", 11, randomizer),
+                    DestinationCard.make("Dallas", "New-York", 11, randomizer),
+                    DestinationCard.make("Vancouver", "Santa-Fe", 13, randomizer),
+                    DestinationCard.make("Los-Angeles", "Chicago", 16, randomizer),
+                    DestinationCard.make("Kansas-City", "Houston", 5, randomizer),
+                    DestinationCard.make("Seattle", "Los-Angeles", 9, randomizer),
+                    DestinationCard.make("Vancouver", "Montreal", 20, randomizer),
+                    DestinationCard.make("Seattle", "New-York", 22, randomizer),
                 ]
             ),
             train_cards=TrainCards(
@@ -405,7 +419,8 @@ class Box:
         )
 
     @classmethod
-    def small(cls, players: List[Player]) -> Box:
+    def small(cls, players: List[Player], randomizer: Optional[Random] = None) -> Box:
+        randomizer = Random() if randomizer is None else randomizer
         return Box(
             board=Board.make(
                 [
@@ -416,17 +431,18 @@ class Box:
                     ("C", "D", None, 1),
                     ("D", "E", None, 1),
                     ("D", "F", "red", 1),
-                ]
+                ],
+                randomizer=randomizer,
             ),
             players=tuple(players),
             destination_cards=frozenset(
                 [
-                    DestinationCard.make("A", "F", 6),
-                    DestinationCard.make("A", "E", 3),
-                    DestinationCard.make("B", "D", 4),
-                    DestinationCard.make("C", "D", 1),
-                    DestinationCard.make("C", "F", 2),
-                    DestinationCard.make("E", "F", 2),
+                    DestinationCard.make("A", "F", 6, randomizer),
+                    DestinationCard.make("A", "E", 3, randomizer),
+                    DestinationCard.make("B", "D", 4, randomizer),
+                    DestinationCard.make("C", "D", 1, randomizer),
+                    DestinationCard.make("C", "F", 2, randomizer),
+                    DestinationCard.make("E", "F", 2, randomizer),
                 ]
             ),
             train_cards=TrainCards({Color("red"): 10, Color("blue"): 10, None: 8}),

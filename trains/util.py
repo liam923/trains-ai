@@ -1,5 +1,7 @@
+import string
 from copy import deepcopy
 from copy import deepcopy
+from random import Random
 from typing import Tuple
 
 from trains.game.box import TrainCards, Route

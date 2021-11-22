@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-import random
+from random import Random
 from abc import ABC
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Dict, List, Set, Optional, Union, FrozenSet, Iterable, Tuple
 
 import trains.game.action as gaction
@@ -415,15 +415,17 @@ class SimulatedGameActor(GameActor):
 
     destination_card_pile: List[DestinationCard]  # last is top of pile
     train_card_pile: List[TrainCard]  # last is top of pile
+    randomizer: Random = field(default_factory=Random)
 
     @staticmethod
-    def make(box: Box) -> SimulatedGameActor:
+    def make(box: Box, seed: Union[float, int, str] = None) -> SimulatedGameActor:
         train_card_pile = [
             color for color, count in box.train_cards.items() for _ in range(count)
         ]
-        destination_card_pile = list(box.destination_cards)
-        random.shuffle(train_card_pile)
-        random.shuffle(destination_card_pile)
+        destination_card_pile = sorted(list(box.destination_cards), key=lambda c: c.id)
+        randomizer = Random(seed)
+        randomizer.shuffle(train_card_pile)
+        randomizer.shuffle(destination_card_pile)
         return SimulatedGameActor(
             box=box,
             turn_state=gturn.InitialTurn(),
@@ -441,6 +443,7 @@ class SimulatedGameActor(GameActor):
             built_routes={},
             destination_card_pile=destination_card_pile,
             train_card_pile=train_card_pile,
+            randomizer=randomizer,
         )
 
     def get_action(self) -> Action:
@@ -500,7 +503,8 @@ class SimulatedGameActor(GameActor):
                     for card, count in self.discarded_train_cards.items()
                     for _ in range(count)
                 ]
-                random.shuffle(self.train_card_pile)
+                self.randomizer.shuffle(self.train_card_pile)
+                self.randomizer.shuffle(self.train_card_pile)
             cards[self.train_card_pile.pop()] += 1
         return cards
 
