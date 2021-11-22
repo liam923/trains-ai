@@ -95,19 +95,20 @@ class State:
         def perform_train_draw(
             turn_state: Union[gturn.PlayerStartTurn, gturn.PlayerTrainCardDrawMidTurn],
             action: gaction.TrainCardPickAction,
+            last_turn_started: bool,
             second_draw: bool = False,
         ) -> State:
             if action.draw_known:
                 next_turn_state = gturn.TrainCardDealTurn(
                     1,
                     None,
-                    gturn.PlayerStartTurn(
-                        turn_state.last_turn_forced,
+                    gturn.PlayerStartTurn.make_or_end(
+                        last_turn_started,
                         self.box.next_player_map[turn_state.player],
                     )
                     if second_draw or action.selected_card_if_known is None
                     else gturn.PlayerTrainCardDrawMidTurn(
-                        turn_state.last_turn_forced,
+                        last_turn_started,
                         turn_state.player,
                     ),
                 )
@@ -150,13 +151,13 @@ class State:
                     turn_state=gturn.TrainCardDealTurn(
                         1,
                         self.turn_state.player,
-                        gturn.PlayerStartTurn(
-                            turn_state.last_turn_forced,
+                        gturn.PlayerStartTurn.make_or_end(
+                            last_turn_started,
                             self.box.next_player_map[turn_state.player],
                         )
                         if second_draw
                         else gturn.PlayerTrainCardDrawMidTurn(
-                            turn_state.last_turn_forced, turn_state.player
+                            last_turn_started, turn_state.player
                         ),
                     ),
                 )
@@ -190,27 +191,29 @@ class State:
             else:
                 raise unexpected_action_error
         elif isinstance(self.turn_state, gturn.PlayerStartTurn):
+            remaining_trains = (
+                self.hand.remaining_trains
+                if self.turn_state.player == self.player
+                else self.opponent_hands[self.turn_state.player].remaining_trains
+            )
+            last_turn_started = (
+                self.turn_state.last_turn_started
+                or remaining_trains <= self.box.trains_to_end
+            )
             if isinstance(action, gaction.PassAction):
                 return replace(
                     self,
-                    turn_state=gturn.PlayerStartTurn(
-                        self.turn_state.last_turn_forced,
+                    turn_state=gturn.PlayerStartTurn.make_or_end(
+                        last_turn_started,
                         self.box.next_player_map[self.turn_state.player],
                     ),
                 )
             elif isinstance(action, gaction.BuildAction):
                 if self.turn_state.player == self.player:
-                    last_turn_forced = self.turn_state.last_turn_forced
-                    if (
-                        last_turn_forced is None
-                        and self.hand.remaining_trains - action.route.length
-                        <= self.box.trains_to_end
-                    ):
-                        last_turn_forced = self.turn_state.player
                     return replace(
                         self,
-                        turn_state=gturn.PlayerStartTurn(
-                            last_turn_forced,
+                        turn_state=gturn.PlayerStartTurn.make_or_end(
+                            last_turn_started,
                             self.box.next_player_map[self.turn_state.player],
                         ),
                         built_routes={
@@ -234,17 +237,10 @@ class State:
                     new_known_train_cards, leftovers = subtract_train_cards(
                         old_hand.known_train_cards, action.train_cards
                     )
-                    last_turn_forced = self.turn_state.last_turn_forced
-                    if (
-                        last_turn_forced is None
-                        and old_hand.remaining_trains - action.route.length
-                        <= self.box.trains_to_end
-                    ):
-                        last_turn_forced = self.turn_state.player
                     return replace(
                         self,
-                        turn_state=gturn.PlayerStartTurn(
-                            last_turn_forced,
+                        turn_state=gturn.PlayerStartTurn.make_or_end(
+                            last_turn_started,
                             self.box.next_player_map[self.turn_state.player],
                         ),
                         built_routes={
@@ -267,25 +263,30 @@ class State:
                         ),
                     )
             elif isinstance(action, gaction.TrainCardPickAction):
-                return perform_train_draw(self.turn_state, action)
+                return perform_train_draw(self.turn_state, action, last_turn_started)
             elif isinstance(action, gaction.DestinationCardPickAction):
                 return replace(
                     self,
                     turn_state=gturn.DestinationCardDealTurn(
-                        self.turn_state.last_turn_forced, self.turn_state.player
+                        last_turn_started, self.turn_state.player
                     ),
                 )
             else:
                 raise unexpected_action_error
         elif isinstance(self.turn_state, gturn.PlayerTrainCardDrawMidTurn):
             if isinstance(action, gaction.TrainCardPickAction):
-                return perform_train_draw(self.turn_state, action, True)
+                return perform_train_draw(
+                    self.turn_state,
+                    action,
+                    self.turn_state.last_turn_started,
+                    second_draw=True,
+                )
             else:
                 raise unexpected_action_error
         elif isinstance(self.turn_state, gturn.PlayerDestinationCardDrawMidTurn):
             if isinstance(action, gaction.DestinationCardSelectionAction):
-                next_turn_state: TurnState = gturn.PlayerStartTurn(
-                    self.turn_state.last_turn_forced,
+                next_turn_state: TurnState = gturn.PlayerStartTurn.make_or_end(
+                    self.turn_state.last_turn_started,
                     self.box.next_player_map[self.turn_state.player],
                 )
                 if self.turn_state.player == self.player:
@@ -325,7 +326,7 @@ class State:
         elif isinstance(self.turn_state, gturn.DestinationCardDealTurn):
             if isinstance(action, gaction.DestinationCardDealAction):
                 next_turn_state = gturn.PlayerDestinationCardDrawMidTurn(
-                    self.turn_state.last_turn_forced, self.turn_state.to_player
+                    self.turn_state.last_turn_started, self.turn_state.to_player
                 )
                 if self.turn_state.to_player == self.player:
                     return replace(
@@ -408,7 +409,9 @@ class State:
             if isinstance(action, gaction.RevealDestinationCardSelectionsAction):
                 return replace(
                     self,
-                    turn_state=gturn.PlayerStartTurn(None, self.box.players[0]),
+                    turn_state=gturn.PlayerStartTurn.make_or_end(
+                        False, self.box.players[0]
+                    ),
                     opponent_hands={
                         player: replace(
                             hand,
@@ -477,16 +480,36 @@ class State:
         probability: float = 1
 
     def get_legal_actions(self) -> Generator[LegalAction, None, None]:
-        def get_train_card_draw_actions() -> Generator[State.LegalAction, None, None]:
-            for color in self.face_up_train_cards:
-                yield State.LegalAction(gaction.TrainCardPickAction(True, color))
+        def get_train_card_draw_actions(
+            second: bool = False,
+        ) -> Generator[State.LegalAction, None, None]:
+            for color, count in self.face_up_train_cards.items():
+                if count > 0 and not (second and color is None):
+                    yield State.LegalAction(gaction.TrainCardPickAction(True, color))
             yield State.LegalAction(gaction.TrainCardPickAction(False, None))
 
         def get_build_actions(
             known_cards: TrainCards, unknown_cards: int
         ) -> Generator[State.LegalAction, None, None]:
             for route in self.box.board.routes:
-                if route not in self.built_routes:
+                if (
+                    route not in self.built_routes
+                    and route.length <= self.hand.remaining_trains
+                    and (
+                        (
+                            len(self.box.players)
+                            >= self.box.double_routes_player_minimum
+                            and not any(
+                                self.built_routes.get(double, None) == self.player
+                                for double in self.box.board.double_routes[route]
+                            )
+                        )
+                        or not any(
+                            double in self.built_routes
+                            for double in self.box.board.double_routes[route]
+                        )
+                    )
+                ):
                     if route.color is None:
                         colors: Iterable[Color] = self.box.colors
                     else:
@@ -615,7 +638,7 @@ class State:
                     self.opponent_hands[self.turn_state.player].unknown_train_cards,
                 )
         elif isinstance(self.turn_state, gturn.PlayerTrainCardDrawMidTurn):
-            yield from get_train_card_draw_actions()
+            yield from get_train_card_draw_actions(second=True)
         elif isinstance(self.turn_state, gturn.DestinationCardDealTurn):
             cards = min(
                 self.box.dealt_destination_cards_range[1],

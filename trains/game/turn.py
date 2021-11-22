@@ -48,11 +48,11 @@ class RotatingTurn:
     the game.
 
     Args:
-        last_turn_forced: If the last turn has been forced by a player, the player who
-            forced the last turn. Otherwise, None.
+        last_turn_started: True if the last turn of the game has been started or
+            completed.
     """
 
-    last_turn_forced: Optional[Player]
+    last_turn_started: bool
 
 
 @dataclass(frozen=True)
@@ -67,6 +67,15 @@ class PlayerStartTurn(PlayerTurn, RotatingTurn):
     """
     Represents the start of a player's turn
     """
+
+    @staticmethod
+    def make_or_end(
+        last_turn_started: bool, player: Player
+    ) -> Union[PlayerStartTurn, GameOverTurn]:
+        if last_turn_started:
+            return GameOverTurn()
+        else:
+            return PlayerStartTurn(last_turn_started=last_turn_started, player=player)
 
 
 @dataclass(frozen=True)

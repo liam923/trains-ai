@@ -3,7 +3,7 @@ from __future__ import annotations
 import random
 from abc import ABC
 from dataclasses import dataclass
-from typing import Dict, List, Set, Optional, Union, FrozenSet
+from typing import Dict, List, Set, Optional, Union, FrozenSet, Iterable, Tuple
 
 import trains.game.action as gaction
 import trains.game.turn as gturn
@@ -21,7 +21,11 @@ from trains.game.box import (
 from trains.game.player_actor import PlayerActor
 from trains.game.turn import TurnState
 from trains.mypy_util import assert_never
-from trains.util import sufficient_cards_to_build, merge_train_cards
+from trains.util import (
+    sufficient_cards_to_build,
+    merge_train_cards,
+    subtract_train_cards,
+)
 
 
 @dataclass  # type: ignore
@@ -175,9 +179,16 @@ class GameActor(Actor, ABC):
                 self.player_hands[turn_state.player].train_cards[
                     action.selected_card_if_known
                 ] += 1
+                self.face_up_train_cards[action.selected_card_if_known] -= 1
 
         if isinstance(self.turn_state, gturn.PlayerInitialDestinationCardChoiceTurn):
             if isinstance(action, gaction.DestinationCardSelectionAction):
+                self._recycle_destination_cards(
+                    self.player_hands[
+                        self.turn_state.player
+                    ].unselected_destination_cards
+                    - action.selected_cards
+                )
                 self.player_hands[self.turn_state.player].destination_cards = set(
                     action.selected_cards
                 )
@@ -192,9 +203,14 @@ class GameActor(Actor, ABC):
             else:
                 raise unexpected_action_error
         elif isinstance(self.turn_state, gturn.PlayerStartTurn):
+            last_turn_started = (
+                self.turn_state.last_turn_started
+                or self.player_hands[self.turn_state.player].remaining_trains
+                <= self.box.trains_to_end
+            )
             if isinstance(action, gaction.PassAction):
-                return gturn.PlayerStartTurn(
-                    self.turn_state.last_turn_forced,
+                return gturn.PlayerStartTurn.make_or_end(
+                    last_turn_started,
                     self.box.next_player_map[self.turn_state.player],
                 )
             elif isinstance(action, gaction.BuildAction):
@@ -202,28 +218,32 @@ class GameActor(Actor, ABC):
                 self.player_hands[
                     self.turn_state.player
                 ].remaining_trains -= action.route.length
+                self.player_hands[
+                    self.turn_state.player
+                ].train_cards = subtract_train_cards(
+                    self.player_hands[self.turn_state.player].train_cards,
+                    action.train_cards,
+                )[
+                    0
+                ]
+                self.discarded_train_cards = merge_train_cards(
+                    self.discarded_train_cards, action.train_cards
+                )
 
-                last_turn_forced = self.turn_state.last_turn_forced
-                if (
-                    last_turn_forced is None
-                    and self.player_hands[self.turn_state.player].remaining_trains
-                    <= self.box.trains_to_end
-                ):
-                    last_turn_forced = self.turn_state.player
-                return gturn.PlayerStartTurn(
-                    last_turn_forced,
+                return gturn.PlayerStartTurn.make_or_end(
+                    last_turn_started,
                     self.box.next_player_map[self.turn_state.player],
                 )
             elif isinstance(action, gaction.TrainCardPickAction):
                 perform_train_draw(self.turn_state, action)
                 if action.draw_known and action.selected_card_if_known is None:
-                    next_turn_state: TurnState = gturn.PlayerStartTurn(
-                        self.turn_state.last_turn_forced,
+                    next_turn_state: TurnState = gturn.PlayerStartTurn.make_or_end(
+                        last_turn_started,
                         self.box.next_player_map[self.turn_state.player],
                     )
                 else:
                     next_turn_state = gturn.PlayerTrainCardDrawMidTurn(
-                        self.turn_state.last_turn_forced, self.turn_state.player
+                        last_turn_started, self.turn_state.player
                     )
                 return gturn.TrainCardDealTurn(
                     count=1,
@@ -232,7 +252,7 @@ class GameActor(Actor, ABC):
                 )
             elif isinstance(action, gaction.DestinationCardPickAction):
                 return gturn.DestinationCardDealTurn(
-                    self.turn_state.last_turn_forced, self.turn_state.player
+                    last_turn_started, self.turn_state.player
                 )
             else:
                 raise unexpected_action_error
@@ -241,9 +261,9 @@ class GameActor(Actor, ABC):
                 perform_train_draw(self.turn_state, action)
                 return gturn.TrainCardDealTurn(
                     count=1,
-                    to_player=self.turn_state.player,
-                    next_turn_state=gturn.PlayerStartTurn(
-                        self.turn_state.last_turn_forced,
+                    to_player=None if action.draw_known else self.turn_state.player,
+                    next_turn_state=gturn.PlayerStartTurn.make_or_end(
+                        self.turn_state.last_turn_started,
                         self.box.next_player_map[self.turn_state.player],
                     ),
                 )
@@ -251,14 +271,20 @@ class GameActor(Actor, ABC):
                 raise unexpected_action_error
         elif isinstance(self.turn_state, gturn.PlayerDestinationCardDrawMidTurn):
             if isinstance(action, gaction.DestinationCardSelectionAction):
+                self._recycle_destination_cards(
+                    self.player_hands[
+                        self.turn_state.player
+                    ].unselected_destination_cards
+                    - action.selected_cards
+                )
                 self.player_hands[self.turn_state.player].destination_cards.update(
                     action.selected_cards
                 )
                 self.player_hands[
                     self.turn_state.player
                 ].unselected_destination_cards = frozenset()
-                return gturn.PlayerStartTurn(
-                    self.turn_state.last_turn_forced,
+                return gturn.PlayerStartTurn.make_or_end(
+                    self.turn_state.last_turn_started,
                     self.box.next_player_map[self.turn_state.player],
                 )
             else:
@@ -269,7 +295,7 @@ class GameActor(Actor, ABC):
                     self.turn_state.to_player
                 ].unselected_destination_cards = action.cards
                 return gturn.PlayerDestinationCardDrawMidTurn(
-                    self.turn_state.last_turn_forced, self.turn_state.to_player
+                    self.turn_state.last_turn_started, self.turn_state.to_player
                 )
             else:
                 raise unexpected_action_error
@@ -295,7 +321,7 @@ class GameActor(Actor, ABC):
                 raise unexpected_action_error
         elif isinstance(self.turn_state, gturn.RevealInitialDestinationCardChoicesTurn):
             if isinstance(action, gaction.RevealDestinationCardSelectionsAction):
-                return gturn.PlayerStartTurn(None, self.box.players[0])
+                return gturn.PlayerStartTurn.make_or_end(False, self.box.players[0])
             else:
                 raise unexpected_action_error
         elif isinstance(self.turn_state, gturn.GameOverTurn):
@@ -339,19 +365,46 @@ class GameActor(Actor, ABC):
         deck_size = self.box.train_cards.total
         return deck_size - cards_not_in_pile == 0
 
+    def _recycle_destination_cards(self, cards: Iterable[DestinationCard]) -> None:
+        """
+        Recycle the given destination cards back into the deck. This function is meant
+        to be overridden by subclasses where this is necessary.
+        """
+
     @property
     def is_over(self) -> bool:
-        return any(
-            player_hand.remaining_trains == 0
-            for player_hand in self.player_hands.values()
-        )
+        return isinstance(self.turn_state, gturn.GameOverTurn)
 
     @property
     def winner(self) -> Optional[Player]:
-        if self.is_over:
+        if not self.is_over:
             return None
 
-        return None
+        player_score_infos = {
+            player: self._get_player_score_info(player) for player in self.box.players
+        }
+
+        # add in longest path bonus
+        longest_path = max(
+            path_length for _, path_length in player_score_infos.values()
+        )
+        for player, (raw_score, path_length) in player_score_infos.items():
+            if path_length == longest_path:
+                player_score_infos[player] = (
+                    raw_score + self.box.longest_path_bonus,
+                    path_length,
+                )
+
+        # TODO: add in tiebreakers
+
+        return max(player_score_infos.items(), key=lambda t: t[1][0])[0]
+
+    def _get_player_score_info(self, player: Player) -> Tuple[float, int]:
+        """
+        Calculate the player's score from routes and destination cards, along with the
+        length of their longest route.
+        """
+        return 0, 0  # TODO
 
 
 @dataclass  # type: ignore
@@ -462,11 +515,24 @@ class SimulatedGameActor(GameActor):
             destination_cards.append(self.destination_card_pile.pop())
         return frozenset(destination_cards)
 
+    def _recycle_destination_cards(self, cards: Iterable[DestinationCard]) -> None:
+        for card in cards:
+            self.destination_card_pile.insert(0, card)
+
 
 def play_game(players: Dict[Player, PlayerActor], game: GameActor) -> None:
     actors: List[Actor] = list(players.values()) + [game]  # type: ignore
 
+    history = []
     while game.winner is None:
+        for p_actor in players.values():
+            assert (
+                p_actor.turn_state == game.turn_state
+            ), f"{p_actor.turn_state} != {game.turn_state}"
+            assert (
+                p_actor.state.face_up_train_cards == game.face_up_train_cards
+            ), f"{p_actor.state.face_up_train_cards} != {game.face_up_train_cards}"
+
         if game.turn_state.player is None:
             action = game.get_action()
         else:
@@ -483,6 +549,7 @@ def play_game(players: Dict[Player, PlayerActor], game: GameActor) -> None:
         if error is not None:
             print(f"Error: {error}")
         else:
+            history.append((game.turn_state, action))
             for actor in actors:
                 actor.observe_action(action)
 

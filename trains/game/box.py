@@ -16,6 +16,7 @@ from typing import (
     Union,
     TypeVar,
     Type,
+    Any,
 )
 
 from trains.mypy_util import cache

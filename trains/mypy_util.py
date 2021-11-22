@@ -18,4 +18,4 @@ if TYPE_CHECKING:
 
 
 else:
-    pass
+    from functools import cache

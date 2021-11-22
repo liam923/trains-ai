@@ -1,9 +1,10 @@
 from __future__ import annotations
 
 import argparse
+import random
 from abc import ABC
 from dataclasses import dataclass
-from typing import Optional, Callable, FrozenSet
+from typing import Optional, Callable, FrozenSet, TypeVar, Type
 
 import trains.game.action as gaction
 import trains.game.turn as gturn
@@ -14,6 +15,9 @@ from trains.game.box import Color, City, Box, Player, TrainCards
 from trains.game.state import State
 
 
+_PlayerActor = TypeVar("_PlayerActor", bound="PlayerActor")
+
+
 @dataclass  # type: ignore
 class PlayerActor(Actor, ABC):
     """
@@ -21,6 +25,11 @@ class PlayerActor(Actor, ABC):
     """
 
     state: State
+
+    @classmethod
+    def make(cls: Type[_PlayerActor], box: Box, player: Player) -> _PlayerActor:
+        state = State.make(box, player)
+        return cls(box=box, state=state, turn_state=state.turn_state)
 
     def validate_action(self, action: Action) -> Optional[str]:
         return None
@@ -31,11 +40,6 @@ class PlayerActor(Actor, ABC):
 
 
 class UserActor(PlayerActor):
-    @classmethod
-    def make(cls, box: Box, player: Player) -> UserActor:
-        state = State.make(box, player)
-        return UserActor(box=box, state=state, turn_state=state.turn_state)
-
     def get_action(self) -> Action:
         if isinstance(self.turn_state, gturn.PlayerTurn):
             print()
@@ -238,6 +242,12 @@ class UserActor(PlayerActor):
 
     def parse_action(self, action_str: str) -> Action:
         return self._parser(action_str)
+
+
+class RandomActor(PlayerActor):
+    def get_action(self) -> Action:
+        all_actions = list(self.state.get_legal_actions())
+        return random.choice(all_actions).action
 
 
 class AIActor(PlayerActor):
