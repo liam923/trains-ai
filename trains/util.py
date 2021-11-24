@@ -1,6 +1,8 @@
+from __future__ import annotations
+
 from copy import deepcopy
-from copy import deepcopy
-from typing import Tuple
+from dataclasses import dataclass
+from typing import Tuple, TypeVar, Generic, Optional, Iterable, Generator
 
 from trains.game.box import TrainCards, Route
 
@@ -51,3 +53,25 @@ def probability_of_having_cards(
     specified size, with the given distribution.
     """
     return 1  # TODO
+
+
+_T = TypeVar("_T")
+
+
+@dataclass
+class Cons(Generic[_T]):
+    head: _T
+    rest: Optional[Cons[_T]]
+
+    @classmethod
+    def make(cls, iterable: Iterable[_T]) -> Optional[Cons[_T]]:
+        cons = None
+        for i in iterable:
+            cons = cls(i, cons)
+        return cons
+
+    @staticmethod
+    def iterate(l: Optional[Cons[_T]]) -> Generator[_T, None, None]:
+        if l is not None:
+            yield l.head
+            yield from Cons.iterate(l.rest)

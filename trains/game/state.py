@@ -3,7 +3,16 @@ from __future__ import annotations
 import itertools
 import math
 from dataclasses import dataclass, replace
-from typing import List, FrozenSet, Dict, Union, Generator, Iterable, Tuple
+from typing import (
+    FrozenSet,
+    Dict,
+    Union,
+    Generator,
+    Iterable,
+    Tuple,
+    Optional,
+    Callable,
+)
 
 import trains.game.action as gaction
 import trains.game.turn as gturn
@@ -24,15 +33,18 @@ from trains.util import (
     subtract_train_cards,
     merge_train_cards,
     probability_of_having_cards,
+    Cons,
 )
 
 
 @dataclass(frozen=True)
 class ObservedHandState:
+    known_destination_cards: FrozenSet[DestinationCard]
     destination_cards_count: int
-    unselected_destination_cards: int
+    known_unselected_destination_cards: FrozenSet[DestinationCard]
+    unselected_destination_cards_count: int
     known_train_cards: TrainCards
-    unknown_train_cards: int
+    train_cards_count: int
     remaining_trains: int
 
 
@@ -46,6 +58,25 @@ class KnownHandState:
 
 @dataclass(frozen=True)
 class State:
+    """
+    A game state, from the perspective of a certain player. Due to this, there is not
+    full knowledge of opponent's hands.
+
+    Args:
+        box: the box for the game
+        player: the state is in the perspective of this player
+        hand: the hand of the player
+        opponent_hands: the hands of the player's opponents
+        discarded_train_cards: the train card discard pile
+        face_up_train_cards: the face up train cards
+        train_card_pile_distribution: train cards from the deck that have not been seen
+        destination_card_pile_size: the number of remaining undrawn destination cards
+        built_routes: routes that have been built and the player they were built by
+        turn_state: the current turn state of the game
+        revealed_destination_cards: if at the end of the game, the destination cards
+            that each player has
+    """
+
     box: Box
     player: Player  # the player for this state's perspective
     hand: KnownHandState
@@ -53,9 +84,11 @@ class State:
     discarded_train_cards: TrainCards
     face_up_train_cards: TrainCards
     train_card_pile_distribution: TrainCards
+    destination_card_pile_distribution: FrozenSet[DestinationCard]
     destination_card_pile_size: int
     built_routes: Dict[Route, Player]
     turn_state: TurnState
+    revealed_destination_cards: Optional[Dict[Player, FrozenSet[DestinationCard]]]
 
     @classmethod
     def make(cls, box: Box, player: Player) -> State:
@@ -70,10 +103,12 @@ class State:
             ),
             opponent_hands={
                 p: ObservedHandState(
+                    known_destination_cards=frozenset(),
                     destination_cards_count=0,
-                    unselected_destination_cards=0,
+                    known_unselected_destination_cards=frozenset(),
+                    unselected_destination_cards_count=0,
                     known_train_cards=TrainCards(),
-                    unknown_train_cards=0,
+                    train_cards_count=0,
                     remaining_trains=box.starting_train_count,
                 )
                 for p in box.players
@@ -82,9 +117,11 @@ class State:
             discarded_train_cards=TrainCards(),
             face_up_train_cards=TrainCards(),
             train_card_pile_distribution=box.train_cards,
+            destination_card_pile_distribution=box.destination_cards,
             destination_card_pile_size=len(box.destination_cards),
             built_routes={},
             turn_state=gturn.InitialTurn(),
+            revealed_destination_cards=None,
         )
 
     def next_state(self, action: Action) -> State:
@@ -182,6 +219,11 @@ class State:
                             unselected_destination_cards=frozenset(),
                             destination_cards=action.selected_cards,
                         ),
+                        destination_card_pile_distribution=self.destination_card_pile_distribution
+                        | (
+                            self.hand.unselected_destination_cards
+                            - action.selected_cards
+                        ),
                         destination_card_pile_size=self.destination_card_pile_size
                         + len(self.hand.unselected_destination_cards)
                         - len(action.selected_cards),
@@ -252,8 +294,8 @@ class State:
                             self.turn_state.player: replace(
                                 old_hand,
                                 known_train_cards=new_known_train_cards,
-                                unknown_train_cards=old_hand.unknown_train_cards
-                                - leftovers.total,
+                                train_cards_count=old_hand.train_cards_count
+                                - action.route.length,
                                 remaining_trains=old_hand.remaining_trains
                                 - action.route.length,
                             ),
@@ -299,6 +341,11 @@ class State:
                             | action.selected_cards,
                         ),
                         turn_state=next_turn_state,
+                        destination_card_pile_distribution=self.destination_card_pile_distribution
+                        | (
+                            self.hand.unselected_destination_cards
+                            - action.selected_cards
+                        ),
                         destination_card_pile_size=self.destination_card_pile_size
                         + len(self.hand.unselected_destination_cards)
                         - len(action.selected_cards),
@@ -311,14 +358,14 @@ class State:
                             **self.opponent_hands,
                             self.turn_state.player: replace(
                                 old_hand,
-                                unselected_destination_cards=0,
+                                unselected_destination_cards_count=0,
                                 destination_cards_count=old_hand.destination_cards_count
                                 + len(action.selected_cards),
                             ),
                         },
                         turn_state=next_turn_state,
                         destination_card_pile_size=self.destination_card_pile_size
-                        + old_hand.unselected_destination_cards
+                        + old_hand.unselected_destination_cards_count
                         - len(action.selected_cards),
                     )
             else:
@@ -335,6 +382,8 @@ class State:
                         hand=replace(
                             self.hand, unselected_destination_cards=action.cards
                         ),
+                        destination_card_pile_distribution=self.destination_card_pile_distribution
+                        - action.cards,
                         destination_card_pile_size=self.destination_card_pile_size
                         - len(action.cards),
                     )
@@ -346,7 +395,7 @@ class State:
                             **self.opponent_hands,
                             self.turn_state.to_player: replace(
                                 self.opponent_hands[self.turn_state.to_player],
-                                unselected_destination_cards=len(action.cards),
+                                unselected_destination_cards_count=len(action.cards),
                             ),
                         },
                         destination_card_pile_size=self.destination_card_pile_size
@@ -398,7 +447,7 @@ class State:
                                 **self.opponent_hands,
                                 self.turn_state.to_player: replace(
                                     old_hand,
-                                    unknown_train_cards=old_hand.unknown_train_cards
+                                    train_cards_count=old_hand.train_cards_count
                                     + action.cards.total,
                                 ),
                             },
@@ -415,7 +464,7 @@ class State:
                     opponent_hands={
                         player: replace(
                             hand,
-                            unselected_destination_cards=0,
+                            unselected_destination_cards_count=0,
                             destination_cards_count=action.kept_destination_cards[
                                 player
                             ],
@@ -444,13 +493,15 @@ class State:
                     opponent_hands={
                         player: replace(
                             hand,
-                            unselected_destination_cards=len(
+                            unselected_destination_cards_count=len(
                                 action.destination_cards[player]
                             ),
-                            unknown_train_cards=len(action.train_cards[player]),
+                            train_cards_count=len(action.train_cards[player]),
                         )
                         for player, hand in self.opponent_hands.items()
                     },
+                    destination_card_pile_distribution=self.destination_card_pile_distribution
+                    - action.destination_cards[self.player],
                     destination_card_pile_size=self.destination_card_pile_size
                     - sum(map(len, action.destination_cards.values())),
                     train_card_pile_distribution=subtract_train_cards(
@@ -463,6 +514,13 @@ class State:
                     face_up_train_cards=merge_train_cards(
                         self.face_up_train_cards, action.face_up_train_cards
                     ),
+                )
+            else:
+                raise unexpected_action_error
+        elif isinstance(self.turn_state, gturn.RevealFinalDestinationCardsTurn):
+            if isinstance(action, gaction.RevealFinalDestinationCardsAction):
+                return replace(
+                    self, revealed_destination_cards=action.destination_cards
                 )
             else:
                 raise unexpected_action_error
@@ -550,48 +608,45 @@ class State:
         def get_train_card_deal_actions(
             count: int, distribution: TrainCards
         ) -> Generator[State.LegalAction, None, None]:
-            def _inner(
-                count: int,
-                distribution: List[Tuple[TrainCard, int]],
-                distribution_count: int,
-            ) -> Generator[Dict[TrainCard, int], None, None]:
-                color, available = distribution[-1]
-                if len(distribution) == 1:
-                    yield {color: count}
-                else:
-                    remaining_distribution_count = distribution_count - available
-                    for drawn in range(
-                        max(0, count - remaining_distribution_count), available + 1
-                    ):
-                        for sub_draw in _inner(
-                            count - drawn,
-                            distribution[:-1],
-                            remaining_distribution_count,
-                        ):
-                            draw = sub_draw
-                            draw[color] = drawn
-                            yield draw
-
-            for cards in _inner(count, list(distribution.items()), distribution.total):
-                train_cards = TrainCards(cards)
+            for train_cards, prob in self._deal_train_cards(count, distribution):
                 yield State.LegalAction(
                     gaction.TrainCardDealAction(train_cards),
-                    probability=probability_of_having_cards(
-                        train_cards,
-                        train_cards.total,
-                        self.train_card_pile_distribution,
-                    ),
+                    probability=prob,
                 )
+
+        def get_final_destination_cards(
+            revealed_so_far: Optional[Cons[Tuple[Player, FrozenSet[DestinationCard]]]],
+            remaining_counts: Optional[Cons[Tuple[Player, int]]],
+            pile: FrozenSet[DestinationCard],
+        ) -> Generator[Dict[Player, FrozenSet[DestinationCard]], None, None]:
+            if remaining_counts is None:
+                yield dict(Cons.iterate(revealed_so_far))
+            else:
+                player, count = remaining_counts.head
+                for cards in itertools.combinations(pile, count):
+                    cards_set = frozenset(cards)
+                    yield from get_final_destination_cards(
+                        Cons((player, cards_set), revealed_so_far),
+                        remaining_counts.rest,
+                        pile=cards_set,
+                    )
 
         if isinstance(self.turn_state, gturn.InitialTurn):
             return  # TODO: probably unnecessary to implement
         elif isinstance(
             self.turn_state, gturn.PlayerInitialDestinationCardChoiceTurn
         ) or isinstance(self.turn_state, gturn.PlayerDestinationCardDrawMidTurn):
+            legal_cards_range = (
+                self.box.starting_destination_cards_range
+                if isinstance(
+                    self.turn_state, gturn.PlayerInitialDestinationCardChoiceTurn
+                )
+                else self.box.dealt_destination_cards_range
+            )
             if self.player == self.turn_state.player:
                 allowed_card_numbers = list(
                     range(
-                        self.box.starting_destination_cards_range[0],
+                        legal_cards_range[0],
                         len(self.hand.unselected_destination_cards) + 1,
                     )
                 )
@@ -610,10 +665,10 @@ class State:
                 # we can select arbitrary destination cards
                 allowed_card_numbers = list(
                     range(
-                        self.box.starting_destination_cards_range[0],
+                        legal_cards_range[0],
                         self.opponent_hands[
                             self.turn_state.player
-                        ].unselected_destination_cards
+                        ].unselected_destination_cards_count
                         + 1,
                     )
                 )
@@ -635,7 +690,10 @@ class State:
             else:
                 yield from get_build_actions(
                     self.opponent_hands[self.turn_state.player].known_train_cards,
-                    self.opponent_hands[self.turn_state.player].unknown_train_cards,
+                    self.opponent_hands[self.turn_state.player].train_cards_count
+                    - self.opponent_hands[
+                        self.turn_state.player
+                    ].known_train_cards.total,
                 )
         elif isinstance(self.turn_state, gturn.PlayerTrainCardDrawMidTurn):
             yield from get_train_card_draw_actions(second=True)
@@ -662,7 +720,8 @@ class State:
                 list(
                     range(
                         self.box.starting_destination_cards_range[0],
-                        self.opponent_hands[opponent].unselected_destination_cards + 1,
+                        self.opponent_hands[opponent].unselected_destination_cards_count
+                        + 1,
                     )
                 )
                 for opponent in opponents
@@ -676,5 +735,165 @@ class State:
                 )
         elif isinstance(self.turn_state, gturn.GameOverTurn):
             yield State.LegalAction(gaction.PassAction())
+        elif isinstance(self.turn_state, gturn.RevealFinalDestinationCardsTurn):
+            prob = 1
+            pile_size = len(self.box.destination_cards) - len(
+                self.hand.destination_cards
+            )
+            for player, hand in self.opponent_hands.items():
+                prob /= math.comb(
+                    pile_size,
+                    hand.destination_cards_count - len(hand.known_destination_cards),
+                )
+                pile_size -= hand.destination_cards_count
+
+            for destination_card_set in get_final_destination_cards(
+                Cons((self.player, self.hand.destination_cards), None),
+                Cons.make(
+                    (
+                        player,
+                        hand.destination_cards_count
+                        - len(hand.known_destination_cards),
+                    )
+                    for player, hand in self.opponent_hands.items()
+                ),
+                self.destination_card_pile_distribution,
+            ):
+                for opponent, hand in self.opponent_hands.items():
+                    destination_card_set[opponent] |= hand.known_destination_cards
+                yield State.LegalAction(
+                    gaction.RevealFinalDestinationCardsAction(destination_card_set),
+                    probability=prob,
+                )
         else:
             assert_never(self.turn_state)
+
+    def assumed_hands(
+        self,
+        player: Player,
+        route_building_probability_calculator: Callable[
+            [Optional[FrozenSet[DestinationCard]]], float
+        ] = lambda _: 1,
+    ) -> Generator[Tuple[State, float], None, None]:
+        """
+        Generate a list of all possible states where the given player's hand is fully
+        known, together with the probability of the player having the hand.
+
+        Args:
+            player: The player whose hand is being assumed
+            route_building_probability_calculator: A function that given a set of
+                destination cards returns the probability that the player would build
+                the routes that they have built given those destination cards. If the
+                input is None, the it returns the probability of building the routes
+                disregarding destination cards
+        """
+        if player in self.opponent_hands:
+            hand = self.opponent_hands[player]
+            for train_cards, train_cards_prob in self._deal_train_cards(
+                hand.train_cards_count - len(hand.known_train_cards),
+                self.train_card_pile_distribution,
+            ):
+                for (
+                    destination_cards,
+                    destination_cards_prob,
+                ) in self._deal_destination_cards(
+                    hand.destination_cards_count - len(hand.known_destination_cards),
+                    self.destination_card_pile_distribution,
+                ):
+                    destination_card_pile_after_destination_card_deal = (
+                        self.destination_card_pile_distribution - destination_cards
+                    )
+                    # we can re-calculate destination_cards_prob to consider the routes
+                    # that the player has built so far to make it more accurate
+
+                    # Let D = drawing a certain set of destination cards
+                    # and R = building a certain set of routes
+                    # By bayes:
+                    # P(D|R) = P(R|D) * P(D) / P(R)
+                    # P(R|D) is route_building_probability_calculator(destination_cards)
+                    # P(R) is route_building_probability_calculator(None)
+                    # P(D) is destination_cards_prob
+
+                    weighted_destination_cards_prob = (
+                        route_building_probability_calculator(destination_cards)
+                        * destination_cards_prob
+                        / route_building_probability_calculator(None)
+                    )
+                    for (
+                        unselected_destination_cards,
+                        unselected_destination_cards_prob,
+                    ) in self._deal_destination_cards(
+                        hand.unselected_destination_cards_count
+                        - len(hand.known_unselected_destination_cards),
+                        destination_card_pile_after_destination_card_deal,
+                    ):
+                        yield replace(
+                            self,
+                            train_card_pile_distribution=subtract_train_cards(
+                                self.train_card_pile_distribution, train_cards
+                            )[0],
+                            destination_card_pile_distribution=destination_card_pile_after_destination_card_deal
+                            - unselected_destination_cards,
+                            opponent_hands={
+                                **self.opponent_hands,
+                                player: replace(
+                                    hand,
+                                    known_train_cards=merge_train_cards(
+                                        hand.known_train_cards, train_cards
+                                    ),
+                                    known_destination_cards=hand.known_destination_cards
+                                    | destination_cards,
+                                    known_unselected_destination_cards=hand.known_unselected_destination_cards
+                                    | unselected_destination_cards,
+                                ),
+                            },
+                        ), train_cards_prob * weighted_destination_cards_prob * unselected_destination_cards_prob
+        else:
+            yield self, 1
+
+    def hand_is_known(self, player: Player) -> bool:
+        """
+        Determine if the state has full knowledge of the hand of the given player
+        """
+        if player in self.opponent_hands:
+            hand = self.opponent_hands[player]
+            return (
+                len(hand.known_train_cards) == hand.train_cards_count
+                and len(hand.known_destination_cards) == hand.destination_cards_count
+                and len(hand.known_unselected_destination_cards)
+                == hand.unselected_destination_cards_count
+            )
+        else:
+            return True
+
+    @classmethod
+    def _deal_train_cards(
+        cls, cards: int, deck: TrainCards
+    ) -> Generator[Tuple[TrainCards, float], None, None]:
+        def _deal_train_cards(
+            remaining_cards: int,
+            current_deck: Optional[Cons[Tuple[TrainCard, int]]],
+            deal_so_far: Optional[Cons[Tuple[TrainCard, int]]] = None,
+        ) -> Generator[TrainCards, None, None]:
+            if remaining_cards == 0 or current_deck is None:
+                yield TrainCards(Cons.iterate(deal_so_far))
+            else:
+                color, color_cards = current_deck.head
+                max_count = max(color_cards, remaining_cards)
+                for count in range(0, max_count + 1):
+                    yield from _deal_train_cards(
+                        remaining_cards - count,
+                        current_deck.rest,
+                        Cons((color, count), deal_so_far),
+                    )
+
+        for train_cards in _deal_train_cards(cards, Cons.make(deck.items())):
+            yield train_cards, probability_of_having_cards(train_cards, cards, deck)
+
+    @classmethod
+    def _deal_destination_cards(
+        cls, cards: int, destination_cards: FrozenSet[DestinationCard]
+    ) -> Generator[Tuple[FrozenSet[DestinationCard], float], None, None]:
+        prob = 1 / math.comb(len(destination_cards), cards)
+        for result_cards in itertools.combinations(destination_cards, cards):
+            yield frozenset(result_cards), prob

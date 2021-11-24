@@ -77,6 +77,16 @@ class RevealDestinationCardSelectionsAction:
 
 
 @dataclass(frozen=True)
+class RevealFinalDestinationCardsAction:
+    """
+    Represents the game revealing to players what destination cards each one has at the
+    end of the game
+    """
+
+    destination_cards: Dict[Player, FrozenSet[DestinationCard]]
+
+
+@dataclass(frozen=True)
 class InitialDealAction:
     """
     Represents the game dealing hands to all players at the start of the game
@@ -104,4 +114,5 @@ Action = Union[
     RevealDestinationCardSelectionsAction,
     InitialDealAction,
     PassAction,
+    RevealFinalDestinationCardsAction,
 ]

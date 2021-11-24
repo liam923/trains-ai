@@ -2,23 +2,24 @@ from typing import Callable, List, Tuple
 
 import pytest
 
+from trains.ai.random import RandomActor
 from trains.game.action import Action
 from trains.game.box import Box, Player
 from trains.game.game_actor import SimulatedGameActor
-from trains.game.player_actor import RandomActor
 from trains.game.turn import TurnState
 
 
 @pytest.mark.parametrize(
-    "box_maker, player_count", [(Box.small, 2), (Box.standard, 2), (Box.standard, 4)]
+    "box_maker, player_count",
+    [(Box.small, 2), (Box.standard, 2), (Box.standard, 4)],
 )
 @pytest.mark.parametrize("game_index", list(range(20)))
 def test_gameplay(
     box_maker: Callable[[List[Player]], Box], player_count: int, game_index: int
 ):
     """
-    Test playing a multitude of games with random moves and check that no obvious
-    errors occur.
+    Test that when playing a multitude of games with random moves, no data gets out of
+    sync between State and GameActor instances, and that no errors are raised
     """
     players = [Player(str(i + 1)) for i in range(player_count)]
     box = box_maker(players)

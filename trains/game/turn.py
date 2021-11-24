@@ -71,9 +71,9 @@ class PlayerStartTurn(PlayerTurn, RotatingTurn):
     @staticmethod
     def make_or_end(
         last_turn_started: bool, player: Player
-    ) -> Union[PlayerStartTurn, GameOverTurn]:
+    ) -> Union[PlayerStartTurn, RevealFinalDestinationCardsTurn]:
         if last_turn_started:
-            return GameOverTurn()
+            return RevealFinalDestinationCardsTurn()
         else:
             return PlayerStartTurn(last_turn_started=last_turn_started, player=player)
 
@@ -133,6 +133,14 @@ class RevealInitialDestinationCardChoicesTurn(GameTurn):
     """
 
 
+@dataclass(frozen=True)
+class RevealFinalDestinationCardsTurn(GameTurn):
+    """
+    Represents the game revealing to players how which destination cards they each
+    have at the end of the game.
+    """
+
+
 TurnState = Union[
     GameOverTurn,
     PlayerInitialDestinationCardChoiceTurn,
@@ -143,4 +151,5 @@ TurnState = Union[
     DestinationCardDealTurn,
     TrainCardDealTurn,
     RevealInitialDestinationCardChoicesTurn,
+    RevealFinalDestinationCardsTurn,
 ]

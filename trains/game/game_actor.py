@@ -160,6 +160,11 @@ class GameActor(Actor, ABC):
                 return None
             else:
                 return unexpected_action_message
+        elif isinstance(self.turn_state, gturn.RevealFinalDestinationCardsTurn):
+            if isinstance(action, gaction.RevealFinalDestinationCardsAction):
+                return None
+            else:
+                return unexpected_action_message
         else:
             assert_never(self.turn_state)
 
@@ -343,6 +348,11 @@ class GameActor(Actor, ABC):
                 return gturn.PlayerInitialDestinationCardChoiceTurn(self.box.players[0])
             else:
                 raise unexpected_action_error
+        elif isinstance(self.turn_state, gturn.RevealFinalDestinationCardsTurn):
+            if isinstance(action, gaction.RevealFinalDestinationCardsAction):
+                return gturn.GameOverTurn()
+            else:
+                raise unexpected_action_error
         else:
             assert_never(self.turn_state)
 
@@ -481,6 +491,13 @@ class SimulatedGameActor(GameActor):
                     face_up_train_cards=self._deal_train_cards(
                         self.box.face_up_train_cards
                     ),
+                )
+            elif isinstance(self.turn_state, gturn.RevealFinalDestinationCardsTurn):
+                return gaction.RevealFinalDestinationCardsAction(
+                    {
+                        player: frozenset(hand.destination_cards)
+                        for player, hand in self.player_hands.items()
+                    }
                 )
             else:
                 assert_never(self.turn_state)
