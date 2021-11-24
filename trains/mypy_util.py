@@ -18,4 +18,6 @@ if TYPE_CHECKING:
 
 
 else:
-    from functools import cache
+    import functools
+
+    cache = functools.cache
