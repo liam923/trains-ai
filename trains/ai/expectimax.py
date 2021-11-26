@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import operator
 from dataclasses import dataclass
 from typing import Tuple, Optional
 
@@ -67,19 +66,14 @@ class ExpectimaxActor(AiActor):
             if state.hand_is_known(state.turn_state.player):
                 # if we know the player's hand, then we can do normal expectiminimax
 
-                # perform the action with the highest utility if the current player is
-                # the player, otherwise perform the one with the lowest action
-
-                # (for now, we assume that opponents are trying to minimize the player's
-                # utility, although this doesn't make too much sense for games with more
-                # than two players)
-
-                min_or_max = max if state.turn_state.player == state.player else min
+                # perform the action with the highest utility for the current player
                 successors_with_utility = (
                     (_score_state(next_state), action.action, next_state)
                     for action, next_state in successors
                 )
-                return min_or_max(successors_with_utility, key=operator.itemgetter(0))
+                return max(
+                    successors_with_utility, key=lambda r: r[0][state.turn_state.player]
+                )
             else:
                 # If we don't know the player's hand, we consider all possible hands
                 # that the player could have. For each hand, we compute its utility and

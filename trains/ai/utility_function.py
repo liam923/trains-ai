@@ -2,13 +2,37 @@ from __future__ import annotations
 
 import functools
 import operator
-from typing import Callable, Dict, Union, Iterable
+from dataclasses import dataclass
+from typing import Callable, Dict, Union, Iterable, Optional, DefaultDict, Tuple, Type
 
 from trains.game.box import Player
 from trains.game.state import State
 
 
-class Utility(Dict[Player, float]):
+@dataclass(frozen=True)
+class Utility(DefaultDict[Optional[Player], float]):
+    """
+    A class that holds the utilities for each player
+    """
+
+    def __init__(
+        self,
+        cards: Union[
+            Iterable[Tuple[Optional[Player], float]],
+            Dict[Optional[Player], float],
+            Type[float],
+            None,
+        ] = None,
+    ):
+        if isinstance(cards, dict):
+            super().__init__(float, cards.items())
+        elif cards is None:
+            super().__init__(float, {})
+        elif isinstance(cards, type):
+            super().__init__(cards)
+        else:
+            super().__init__(float, cards)
+
     def __add__(self, other: Union[Utility, float]) -> Utility:
         if isinstance(other, int) or isinstance(other, float):
             return Utility({key: val + other for key, val in self.items()})
