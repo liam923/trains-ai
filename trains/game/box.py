@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import uuid
 from collections import defaultdict
-from copy import deepcopy
 from dataclasses import dataclass, field
 from typing import (
     FrozenSet,
@@ -135,22 +134,22 @@ class TrainCards(DefaultDict[TrainCard, int]):
             super().__init__(int, cards)
 
         self._total = sum(self.values())
-        self._normalized = defaultdict(
-            int, {color: count / self._total for color, count in self.items()}
-        )
 
     @property
     def total(self) -> int:
         return self._total
 
-    @property
+    @property  # type: ignore
+    @cache
     def normalized(self) -> DefaultDict[TrainCard, float]:
-        return self._normalized
+        return defaultdict(
+            int, {color: count / self._total for color, count in self.items()}
+        )
 
     def replacing(self, key: TrainCard, value: int) -> TrainCards:
-        train_cards = deepcopy(self)
+        train_cards = dict(self)
         train_cards[key] = value
-        return train_cards
+        return TrainCards(train_cards)
 
     def incrementing(self, key: TrainCard, value: int) -> TrainCards:
         return self.replacing(key, self[key] + value)

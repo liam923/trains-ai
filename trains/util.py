@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from typing import Tuple, TypeVar, Generic, Optional, Iterable, Generator
 
 from trains.game.box import TrainCards, Route
+from trains.mypy_util import cache
 
 
 def sufficient_cards_to_build(
@@ -46,13 +47,79 @@ def subtract_train_cards(
 
 
 def probability_of_having_cards(
-    cards: TrainCards, pile_size: int, pile_distribution: TrainCards
+    cards: TrainCards, hand_size: int, pile_distribution: TrainCards
 ) -> float:
     """
-    Returns the probability that the given cards are located inside a pile of the
+    Returns the probability that the given cards are located inside a hand of the
     specified size, with the given distribution.
     """
-    return 1  # TODO
+
+    needed_colors = tuple(cards.keys())
+    needed_cards = tuple(cards[color] for color in needed_colors)
+    favorables = tuple(pile_distribution[color] for color in needed_colors)
+    total_favorables = sum(favorables)
+    total_unfavorables = pile_distribution.total - total_favorables
+
+    return _probability_of_having_cards_helper(
+        hand_size, needed_cards, favorables, total_favorables, total_unfavorables
+    )
+
+
+@cache
+def _probability_of_having_cards_helper(
+    remaining: int,
+    needed_cards: Tuple[int, ...],
+    favorables: Tuple[int, ...],
+    total_favorables: int,
+    total_unfavorables: int,
+) -> float:
+    """
+    Helper for probability_of_having_cards that actually does the calculation
+    """
+    if len(needed_cards) == 0:
+        return 1
+    elif remaining == 0:
+        return 0
+    else:
+        total_cards = total_favorables + total_unfavorables
+        prob = 0.0
+        for i, needed in enumerate(needed_cards):
+            if needed > favorables[i]:
+                return 0
+            draw_prob = favorables[i] / total_cards
+
+            if needed == 1:
+                prob += draw_prob * _probability_of_having_cards_helper(
+                    remaining=remaining - 1,
+                    needed_cards=needed_cards[:i] + needed_cards[i + 1 :],
+                    favorables=favorables[:i] + favorables[i + 1 :],
+                    total_favorables=total_favorables - favorables[i],
+                    total_unfavorables=total_unfavorables + favorables[i] - 1,
+                )
+            else:
+                prob += draw_prob * _probability_of_having_cards_helper(
+                    remaining=remaining - 1,
+                    needed_cards=needed_cards[:i]
+                    + (needed_cards[i] - 1,)
+                    + needed_cards[i + 1 :],
+                    favorables=favorables[:i]
+                    + (favorables[i] - 1,)
+                    + favorables[i + 1 :],
+                    total_favorables=total_favorables - 1,
+                    total_unfavorables=total_unfavorables,
+                )
+
+        if total_unfavorables > 0:
+            draw_prob = total_unfavorables / total_cards
+            prob += draw_prob * _probability_of_having_cards_helper(
+                remaining - 1,
+                needed_cards,
+                favorables,
+                total_favorables,
+                total_unfavorables - 1,
+            )
+
+        return prob
 
 
 _T = TypeVar("_T")
