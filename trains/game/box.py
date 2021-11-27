@@ -96,6 +96,29 @@ class Board:
             d[route.cities].append(route)
         return d
 
+    def shortest_path(self, from_city: City, to_city: City) -> int:
+        return self._shortest_paths[frozenset([from_city, to_city])]
+
+    @property  # type: ignore
+    @cache
+    def _shortest_paths(self) -> Dict[FrozenSet[City], int]:
+        # compute the shortest paths for all pairs of cities using Floyd-Warshal
+
+        costs = {
+            route.cities: route.length for route in self.routes
+        }
+
+        for city_k in self.cities:
+            for city_i in self.cities:
+                for city_j in self.cities:
+                    i_k = frozenset([city_i, city_k])
+                    k_j = frozenset([city_k, city_j])
+                    i_j = frozenset([city_i, city_j])
+                    if i_k in costs and k_j in costs:
+                        if i_j not in costs or costs[i_k] + costs[k_j] < costs[i_j]:
+                            costs[i_j] = costs[i_k] + costs[k_j]
+
+        return costs
 
 @dataclass(frozen=True)
 class DestinationCard:
