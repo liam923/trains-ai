@@ -1,7 +1,14 @@
 from dataclasses import dataclass
 from typing import FrozenSet, Dict, Union
 
-from trains.game.box import DestinationCard, Route, TrainCard, TrainCards, Player
+from trains.game.box import (
+    DestinationCard,
+    Route,
+    TrainCard,
+    TrainCards,
+    Player,
+    frozendict,
+)
 
 
 @dataclass(frozen=True)
@@ -73,7 +80,7 @@ class RevealDestinationCardSelectionsAction:
     selected at the start of the game
     """
 
-    kept_destination_cards: Dict[Player, int]
+    kept_destination_cards: frozendict[Player, int]
 
 
 @dataclass(frozen=True)
@@ -83,7 +90,7 @@ class RevealFinalDestinationCardsAction:
     end of the game
     """
 
-    destination_cards: Dict[Player, FrozenSet[DestinationCard]]
+    destination_cards: frozendict[Player, FrozenSet[DestinationCard]]
 
 
 @dataclass(frozen=True)
@@ -92,8 +99,8 @@ class InitialDealAction:
     Represents the game dealing hands to all players at the start of the game
     """
 
-    train_cards: Dict[Player, TrainCards]
-    destination_cards: Dict[Player, FrozenSet[DestinationCard]]
+    train_cards: frozendict[Player, TrainCards]
+    destination_cards: frozendict[Player, FrozenSet[DestinationCard]]
     face_up_train_cards: TrainCards
 
 

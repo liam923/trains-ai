@@ -27,6 +27,7 @@ from trains.game.box import (
     Color,
     TrainCard,
     City,
+    frozendict,
 )
 from trains.game.clusters import Clusters
 from trains.game.turn import TurnState
@@ -90,16 +91,16 @@ class State:
     box: Box
     player: Player  # the player for this state's perspective
     hand: KnownHandState
-    opponent_hands: Dict[Player, ObservedHandState]
+    opponent_hands: frozendict[Player, ObservedHandState]
     discarded_train_cards: TrainCards
     face_up_train_cards: TrainCards
     train_card_pile_distribution: TrainCards
     destination_card_pile_distribution: FrozenSet[DestinationCard]
     destination_card_pile_size: int
-    built_routes: Dict[Route, Player]
-    built_clusters: Dict[Player, Clusters[City]]
+    built_routes: frozendict[Route, Player]
+    built_clusters: frozendict[Player, Clusters[City]]
     turn_state: TurnState
-    revealed_destination_cards: Optional[Dict[Player, FrozenSet[DestinationCard]]]
+    revealed_destination_cards: Optional[frozendict[Player, FrozenSet[DestinationCard]]]
 
     @classmethod
     def make(cls, box: Box, player: Player) -> State:
@@ -115,29 +116,31 @@ class State:
                 complete_destination_cards=frozenset(),
                 incomplete_destination_cards=frozenset(),
             ),
-            opponent_hands={
-                p: ObservedHandState(
-                    known_destination_cards=frozenset(),
-                    destination_cards_count=0,
-                    known_unselected_destination_cards=frozenset(),
-                    unselected_destination_cards_count=0,
-                    known_train_cards=TrainCards(),
-                    train_cards_count=0,
-                    remaining_trains=box.starting_train_count,
-                    known_points_so_far=box.starting_score,
-                    known_complete_destination_cards=frozenset(),
-                    known_incomplete_destination_cards=frozenset(),
-                )
-                for p in box.players
-                if p != player
-            },
+            opponent_hands=frozendict(
+                {
+                    p: ObservedHandState(
+                        known_destination_cards=frozenset(),
+                        destination_cards_count=0,
+                        known_unselected_destination_cards=frozenset(),
+                        unselected_destination_cards_count=0,
+                        known_train_cards=TrainCards(),
+                        train_cards_count=0,
+                        remaining_trains=box.starting_train_count,
+                        known_points_so_far=box.starting_score,
+                        known_complete_destination_cards=frozenset(),
+                        known_incomplete_destination_cards=frozenset(),
+                    )
+                    for p in box.players
+                    if p != player
+                }
+            ),
             discarded_train_cards=TrainCards(),
             face_up_train_cards=TrainCards(),
             train_card_pile_distribution=box.train_cards,
             destination_card_pile_distribution=box.destination_cards,
             destination_card_pile_size=len(box.destination_cards),
-            built_routes={},
-            built_clusters={player: Clusters() for player in box.players},
+            built_routes=frozendict({}),
+            built_clusters=frozendict({player: Clusters() for player in box.players}),
             turn_state=gturn.InitialTurn(),
             revealed_destination_cards=None,
         )
@@ -185,17 +188,23 @@ class State:
                     return replace(
                         self,
                         turn_state=next_turn_state,
-                        opponent_hands={
-                            **self.opponent_hands,
-                            turn_state.player: replace(
-                                self.opponent_hands[turn_state.player],
-                                known_train_cards=self.opponent_hands[
-                                    turn_state.player
-                                ].known_train_cards.incrementing(
-                                    action.selected_card_if_known, 1
+                        opponent_hands=frozendict(
+                            {
+                                **self.opponent_hands,
+                                turn_state.player: replace(
+                                    self.opponent_hands[turn_state.player],
+                                    known_train_cards=self.opponent_hands[
+                                        turn_state.player
+                                    ].known_train_cards.incrementing(
+                                        action.selected_card_if_known, 1
+                                    ),
+                                    train_cards_count=self.opponent_hands[
+                                        turn_state.player
+                                    ].train_cards_count
+                                    + 1,
                                 ),
-                            ),
-                        },
+                            }
+                        ),
                         face_up_train_cards=self.face_up_train_cards.incrementing(
                             action.selected_card_if_known, -1
                         ),
@@ -285,14 +294,18 @@ class State:
                             last_turn_started,
                             self.box.next_player_map[self.turn_state.player],
                         ),
-                        built_routes={
-                            **self.built_routes,
-                            action.route: self.turn_state.player,
-                        },
-                        built_clusters={
-                            **self.built_clusters,
-                            self.turn_state.player: new_cluster,
-                        },
+                        built_routes=frozendict(
+                            {
+                                **self.built_routes,
+                                action.route: self.turn_state.player,
+                            }
+                        ),
+                        built_clusters=frozendict(
+                            {
+                                **self.built_clusters,
+                                self.turn_state.player: new_cluster,
+                            }
+                        ),
                         hand=replace(
                             self.hand,
                             train_cards=subtract_train_cards(
@@ -328,34 +341,41 @@ class State:
                             last_turn_started,
                             self.box.next_player_map[self.turn_state.player],
                         ),
-                        built_routes={
-                            **self.built_routes,
-                            action.route: self.turn_state.player,
-                        },
-                        built_clusters={
-                            **self.built_clusters,
-                            self.turn_state.player: new_cluster,
-                        },
-                        opponent_hands={
-                            **self.opponent_hands,
-                            self.turn_state.player: replace(
-                                old_hand,
-                                known_train_cards=new_known_train_cards,
-                                train_cards_count=old_hand.train_cards_count
-                                - action.route.length,
-                                remaining_trains=old_hand.remaining_trains
-                                - action.route.length,
-                                known_points_so_far=old_hand.known_points_so_far
-                                + self.box.route_point_values[action.route.length]
-                                + sum(
-                                    card.value for card in completed_destination_cards
+                        built_routes=frozendict(
+                            {
+                                **self.built_routes,
+                                action.route: self.turn_state.player,
+                            }
+                        ),
+                        built_clusters=frozendict(
+                            {
+                                **self.built_clusters,
+                                self.turn_state.player: new_cluster,
+                            }
+                        ),
+                        opponent_hands=frozendict(
+                            {
+                                **self.opponent_hands,
+                                self.turn_state.player: replace(
+                                    old_hand,
+                                    known_train_cards=new_known_train_cards,
+                                    train_cards_count=old_hand.train_cards_count
+                                    - action.route.length,
+                                    remaining_trains=old_hand.remaining_trains
+                                    - action.route.length,
+                                    known_points_so_far=old_hand.known_points_so_far
+                                    + self.box.route_point_values[action.route.length]
+                                    + sum(
+                                        card.value
+                                        for card in completed_destination_cards
+                                    ),
+                                    known_complete_destination_cards=old_hand.known_complete_destination_cards
+                                    | completed_destination_cards,
+                                    known_incomplete_destination_cards=old_hand.known_incomplete_destination_cards
+                                    - completed_destination_cards,
                                 ),
-                                known_complete_destination_cards=old_hand.known_complete_destination_cards
-                                | completed_destination_cards,
-                                known_incomplete_destination_cards=old_hand.known_incomplete_destination_cards
-                                - completed_destination_cards,
-                            ),
-                        },
+                            }
+                        ),
                         discarded_train_cards=merge_train_cards(
                             self.discarded_train_cards, action.train_cards
                         ),
@@ -412,15 +432,17 @@ class State:
                     old_hand = self.opponent_hands[self.turn_state.player]
                     return replace(
                         self,
-                        opponent_hands={
-                            **self.opponent_hands,
-                            self.turn_state.player: replace(
-                                old_hand,
-                                unselected_destination_cards_count=0,
-                                destination_cards_count=old_hand.destination_cards_count
-                                + len(action.selected_cards),
-                            ),
-                        },
+                        opponent_hands=frozendict(
+                            {
+                                **self.opponent_hands,
+                                self.turn_state.player: replace(
+                                    old_hand,
+                                    unselected_destination_cards_count=0,
+                                    destination_cards_count=old_hand.destination_cards_count
+                                    + len(action.selected_cards),
+                                ),
+                            }
+                        ),
                         turn_state=next_turn_state,
                         destination_card_pile_size=self.destination_card_pile_size
                         + old_hand.unselected_destination_cards_count
@@ -449,13 +471,17 @@ class State:
                     return replace(
                         self,
                         turn_state=next_turn_state,
-                        opponent_hands={
-                            **self.opponent_hands,
-                            self.turn_state.to_player: replace(
-                                self.opponent_hands[self.turn_state.to_player],
-                                unselected_destination_cards_count=len(action.cards),
-                            ),
-                        },
+                        opponent_hands=frozendict(
+                            {
+                                **self.opponent_hands,
+                                self.turn_state.to_player: replace(
+                                    self.opponent_hands[self.turn_state.to_player],
+                                    unselected_destination_cards_count=len(
+                                        action.cards
+                                    ),
+                                ),
+                            }
+                        ),
                         destination_card_pile_size=self.destination_card_pile_size
                         - len(action.cards),
                     )
@@ -501,14 +527,16 @@ class State:
                         return replace(
                             self,
                             turn_state=self.turn_state.next_turn_state,
-                            opponent_hands={
-                                **self.opponent_hands,
-                                self.turn_state.to_player: replace(
-                                    old_hand,
-                                    train_cards_count=old_hand.train_cards_count
-                                    + action.cards.total,
-                                ),
-                            },
+                            opponent_hands=frozendict(
+                                {
+                                    **self.opponent_hands,
+                                    self.turn_state.to_player: replace(
+                                        old_hand,
+                                        train_cards_count=old_hand.train_cards_count
+                                        + action.cards.total,
+                                    ),
+                                }
+                            ),
                         )
             else:
                 raise unexpected_action_error
@@ -519,16 +547,18 @@ class State:
                     turn_state=gturn.PlayerStartTurn.make_or_end(
                         False, self.box.players[0]
                     ),
-                    opponent_hands={
-                        player: replace(
-                            hand,
-                            unselected_destination_cards_count=0,
-                            destination_cards_count=action.kept_destination_cards[
-                                player
-                            ],
-                        )
-                        for player, hand in self.opponent_hands.items()
-                    },
+                    opponent_hands=frozendict(
+                        {
+                            player: replace(
+                                hand,
+                                unselected_destination_cards_count=0,
+                                destination_cards_count=action.kept_destination_cards[
+                                    player
+                                ],
+                            )
+                            for player, hand in self.opponent_hands.items()
+                        }
+                    ),
                 )
             else:
                 raise unexpected_action_error
@@ -548,16 +578,18 @@ class State:
                         ],
                         train_cards=action.train_cards[self.player],
                     ),
-                    opponent_hands={
-                        player: replace(
-                            hand,
-                            unselected_destination_cards_count=len(
-                                action.destination_cards[player]
-                            ),
-                            train_cards_count=len(action.train_cards[player]),
-                        )
-                        for player, hand in self.opponent_hands.items()
-                    },
+                    opponent_hands=frozendict(
+                        {
+                            player: replace(
+                                hand,
+                                unselected_destination_cards_count=len(
+                                    action.destination_cards[player]
+                                ),
+                                train_cards_count=action.train_cards[player].total,
+                            )
+                            for player, hand in self.opponent_hands.items()
+                        }
+                    ),
                     destination_card_pile_distribution=self.destination_card_pile_distribution
                     - action.destination_cards[self.player],
                     destination_card_pile_size=self.destination_card_pile_size
@@ -788,7 +820,10 @@ class State:
                 selections_map = dict(zip(opponents, selections))
                 yield State.LegalAction(
                     gaction.RevealDestinationCardSelectionsAction(
-                        selections_map | {self.player: len(self.hand.destination_cards)}
+                        frozendict(
+                            selections_map
+                            | {self.player: len(self.hand.destination_cards)}
+                        )
                     ),
                 )
         elif isinstance(self.turn_state, gturn.GameOverTurn):
@@ -820,7 +855,9 @@ class State:
                 for opponent, hand in self.opponent_hands.items():
                     destination_card_set[opponent] |= hand.known_destination_cards
                 yield State.LegalAction(
-                    gaction.RevealFinalDestinationCardsAction(destination_card_set),
+                    gaction.RevealFinalDestinationCardsAction(
+                        frozendict(destination_card_set)
+                    ),
                     probability=prob,
                 )
         else:
@@ -848,7 +885,7 @@ class State:
         if player in self.opponent_hands:
             hand = self.opponent_hands[player]
             for train_cards, train_cards_prob in self._deal_train_cards(
-                hand.train_cards_count - len(hand.known_train_cards),
+                hand.train_cards_count - hand.known_train_cards.total,
                 self.train_card_pile_distribution,
             ):
                 for (
@@ -892,35 +929,37 @@ class State:
                             )[0],
                             destination_card_pile_distribution=destination_card_pile_after_destination_card_deal
                             - unselected_destination_cards,
-                            opponent_hands={
-                                **self.opponent_hands,
-                                player: replace(
-                                    hand,
-                                    known_train_cards=merge_train_cards(
-                                        hand.known_train_cards, train_cards
+                            opponent_hands=frozendict(
+                                {
+                                    **self.opponent_hands,
+                                    player: replace(
+                                        hand,
+                                        known_train_cards=merge_train_cards(
+                                            hand.known_train_cards, train_cards
+                                        ),
+                                        known_destination_cards=hand.known_destination_cards
+                                        | destination_cards,
+                                        known_unselected_destination_cards=hand.known_unselected_destination_cards
+                                        | unselected_destination_cards,
+                                        known_complete_destination_cards=hand.known_complete_destination_cards
+                                        | {
+                                            card
+                                            for card in destination_cards
+                                            if self.built_clusters[player].is_connected(
+                                                card.cities
+                                            )
+                                        },
+                                        known_incomplete_destination_cards=hand.known_incomplete_destination_cards
+                                        | {
+                                            card
+                                            for card in destination_cards
+                                            if not self.built_clusters[
+                                                player
+                                            ].is_connected(card.cities)
+                                        },
                                     ),
-                                    known_destination_cards=hand.known_destination_cards
-                                    | destination_cards,
-                                    known_unselected_destination_cards=hand.known_unselected_destination_cards
-                                    | unselected_destination_cards,
-                                    known_complete_destination_cards=hand.known_complete_destination_cards
-                                    | {
-                                        card
-                                        for card in destination_cards
-                                        if self.built_clusters[player].is_connected(
-                                            card.cities
-                                        )
-                                    },
-                                    known_incomplete_destination_cards=hand.known_incomplete_destination_cards
-                                    | {
-                                        card
-                                        for card in destination_cards
-                                        if not self.built_clusters[player].is_connected(
-                                            card.cities
-                                        )
-                                    },
-                                ),
-                            },
+                                }
+                            ),
                         ), train_cards_prob * weighted_destination_cards_prob * unselected_destination_cards_prob
         else:
             yield self, 1

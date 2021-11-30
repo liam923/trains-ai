@@ -3,7 +3,7 @@ from __future__ import annotations
 import argparse
 from abc import ABC
 from dataclasses import dataclass
-from typing import Optional, Callable, FrozenSet, TypeVar, Type
+from typing import Optional, Callable, FrozenSet, TypeVar, Type, Any
 
 import trains.game.action as gaction
 import trains.game.turn as gturn
@@ -25,9 +25,11 @@ class PlayerActor(Actor, ABC):
     state: State
 
     @classmethod
-    def make(cls: Type[_PlayerActor], box: Box, player: Player) -> _PlayerActor:
+    def make(
+        cls: Type[_PlayerActor], box: Box, player: Player, **kwargs: Any
+    ) -> _PlayerActor:
         state = State.make(box, player)
-        return cls(box=box, state=state, turn_state=state.turn_state)
+        return cls(box=box, state=state, turn_state=state.turn_state, **kwargs)  # type: ignore
 
     def validate_action(self, action: Action) -> Optional[str]:
         return None
@@ -76,7 +78,7 @@ class UserActor(PlayerActor):
         print(f"Face up train cards: {colors}")
 
     def observe_action(self, action: Action) -> None:
-        if isinstance(self.turn_state, gturn.PlayerTurn):
+        if isinstance(self.turn_state, gturn.PlayerTurn) and self.turn_state.player != self.state.player:
             if isinstance(action, gaction.BuildAction):
                 cities = list(action.route.cities)
                 colors = " and ".join(
@@ -85,7 +87,7 @@ class UserActor(PlayerActor):
                     if count > 0
                 )
                 print(
-                    f"{self.turn_state.player.name} built {'grey' if action.route.color is None else action.route.color.name} route from {cities[0].name} to {cities[0].name} built using {colors}"
+                    f"{self.turn_state.player.name} built {'grey' if action.route.color is None else action.route.color.name} route from {cities[0].name} to {cities[1].name} built using {colors}"
                 )
             elif isinstance(action, gaction.DestinationCardSelectionAction):
                 print(

@@ -1,4 +1,4 @@
-from typing import Callable, List, Tuple
+from typing import Callable, List, Tuple, Dict
 
 import pytest
 
@@ -6,7 +6,8 @@ from trains.ai.random import RandomActor
 from trains.game.action import Action
 from trains.game.box import Box, Player
 from trains.game.game_actor import SimulatedGameActor
-from trains.game.turn import TurnState
+from trains.game.player_actor import PlayerActor
+from trains.game.turn import TurnState, RotatingTurn
 
 
 @pytest.mark.parametrize(
@@ -47,6 +48,25 @@ def test_gameplay(
                 player.state.hand.remaining_trains
                 == game.player_hands[p].remaining_trains
             )
+
+            for op, op_hand in player.state.opponent_hands.items():
+                assert (
+                    op_hand.remaining_trains == game.player_hands[op].remaining_trains
+                )
+                assert (
+                    op_hand.train_cards_count == game.player_hands[op].train_cards.total
+                )
+                assert op_hand.destination_cards_count == len(
+                    game.player_hands[op].destination_cards
+                ) or not isinstance(game.turn_state, RotatingTurn)
+                assert op_hand.unselected_destination_cards_count == len(
+                    game.player_hands[op].unselected_destination_cards
+                ) or not isinstance(game.turn_state, RotatingTurn)
+                assert op_hand.train_cards_count >= len(op_hand.known_train_cards)
+                assert all(
+                    count <= game.player_hands[op].train_cards[color]
+                    for color, count in op_hand.known_train_cards.items()
+                )
 
         if game.turn_state.player is None:
             action = game.get_action()

@@ -3,7 +3,7 @@ from typing import Optional
 import pytest
 
 from trains.game.box import TrainCards, Color
-from trains.util import probability_of_having_cards
+from trains.util import probability_of_having_cards, subtract_train_cards
 
 blue = Color("blue")
 red = Color("red")
@@ -80,3 +80,56 @@ def test_probability_of_having_cards(
     actual = probability_of_having_cards(cards, hand_size, pile_distribution)
     if expected is not None:
         assert actual == pytest.approx(expected)
+
+
+@pytest.mark.parametrize(
+    "original, minus, expected_result, expected_leftovers",
+    [
+        (TrainCards(), TrainCards(), TrainCards(), TrainCards()),
+        (
+            TrainCards({blue: 2, red: 1}),
+            TrainCards({blue: 1}),
+            TrainCards({blue: 1, red: 1}),
+            TrainCards(),
+        ),
+        (
+            TrainCards({blue: 2, red: 1}),
+            TrainCards({blue: 2}),
+            TrainCards({red: 1}),
+            TrainCards(),
+        ),
+        (
+            TrainCards({blue: 2, red: 1}),
+            TrainCards({blue: 3}),
+            TrainCards({red: 1}),
+            TrainCards({blue: 1}),
+        ),
+        (
+            TrainCards({blue: 2, red: 1}),
+            TrainCards({blue: 1, red: 1}),
+            TrainCards({blue: 1}),
+            TrainCards(),
+        ),
+        (
+            TrainCards({blue: 2, red: 1}),
+            TrainCards({blue: 2, red: 2}),
+            TrainCards(),
+            TrainCards({red: 1}),
+        ),
+        (
+            TrainCards({blue: 2, red: 1, wild: 4}),
+            TrainCards({blue: 3, red: 2}),
+            TrainCards({wild: 4}),
+            TrainCards({red: 1, blue: 1}),
+        ),
+    ],
+)
+def test_subtract_train_cards(
+    original: TrainCards,
+    minus: TrainCards,
+    expected_result: TrainCards,
+    expected_leftovers: TrainCards,
+):
+    actual_result, actual_leftovers = subtract_train_cards(original, minus)
+    assert actual_result == expected_result
+    assert actual_leftovers == expected_leftovers

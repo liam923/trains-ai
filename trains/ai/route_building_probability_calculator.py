@@ -31,3 +31,13 @@ class RouteBuildingProbabilityCalculator(ABC):
         self, destination_cards: Optional[FrozenSet[DestinationCard]] = None
     ) -> float:
         return self.probability_of_building_routes(destination_cards)
+
+
+class DummyRbpc(RouteBuildingProbabilityCalculator):
+    def _probability_of_building_routes_ignoring_cards(self) -> float:
+        return 1
+
+    def _probability_of_building_routes_with_cards(
+        self, destination_cards: FrozenSet[DestinationCard]
+    ) -> float:
+        return 1

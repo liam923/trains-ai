@@ -2,8 +2,19 @@ from __future__ import annotations
 
 import random
 from abc import ABC
+from collections import defaultdict
 from dataclasses import dataclass
-from typing import Dict, List, Set, Optional, Union, FrozenSet, Iterable, Tuple
+from typing import (
+    Dict,
+    List,
+    Set,
+    Optional,
+    Union,
+    FrozenSet,
+    Iterable,
+    Tuple,
+    DefaultDict,
+)
 
 import trains.game.action as gaction
 import trains.game.turn as gturn
@@ -17,6 +28,7 @@ from trains.game.box import (
     Player,
     Route,
     TrainCards,
+    frozendict,
 )
 from trains.game.player_actor import PlayerActor
 from trains.game.turn import TurnState
@@ -181,10 +193,12 @@ class GameActor(Actor, ABC):
             action: gaction.TrainCardPickAction,
         ) -> None:
             if action.draw_known:
-                self.player_hands[turn_state.player].train_cards[
-                    action.selected_card_if_known
-                ] += 1
-                self.face_up_train_cards[action.selected_card_if_known] -= 1
+                self.player_hands[turn_state.player].train_cards = self.player_hands[
+                    turn_state.player
+                ].train_cards.incrementing(action.selected_card_if_known, 1)
+                self.face_up_train_cards = self.face_up_train_cards.incrementing(
+                    action.selected_card_if_known, -1
+                )
 
         if isinstance(self.turn_state, gturn.PlayerInitialDestinationCardChoiceTurn):
             if isinstance(action, gaction.DestinationCardSelectionAction):
@@ -308,7 +322,9 @@ class GameActor(Actor, ABC):
             if isinstance(action, gaction.TrainCardDealAction):
                 if self.turn_state.to_player is None:
                     for card, count in action.cards.items():
-                        self.face_up_train_cards[card] += count
+                        self.face_up_train_cards = (
+                            self.face_up_train_cards.incrementing(card, count)
+                        )
                     if self.face_up_train_cards[None] >= self.box.wildcards_to_clear:
                         self.face_up_train_cards = TrainCards()
                         return gturn.TrainCardDealTurn(
@@ -317,10 +333,12 @@ class GameActor(Actor, ABC):
                             next_turn_state=self.turn_state.next_turn_state,
                         )
                 else:
-                    for card, count in action.cards.items():
-                        self.player_hands[self.turn_state.to_player].train_cards[
-                            card
-                        ] += count
+                    self.player_hands[
+                        self.turn_state.to_player
+                    ].train_cards = merge_train_cards(
+                        self.player_hands[self.turn_state.to_player].train_cards,
+                        action.cards,
+                    )
                 return self.turn_state.next_turn_state
             else:
                 raise unexpected_action_error
@@ -469,35 +487,43 @@ class SimulatedGameActor(GameActor):
                 self.turn_state, gturn.RevealInitialDestinationCardChoicesTurn
             ):
                 return gaction.RevealDestinationCardSelectionsAction(
-                    {
-                        player: len(hand.destination_cards)
-                        for player, hand in self.player_hands.items()
-                    }
+                    frozendict(
+                        {
+                            player: len(hand.destination_cards)
+                            for player, hand in self.player_hands.items()
+                        }
+                    )
                 )
             elif isinstance(self.turn_state, gturn.InitialTurn):
                 return gaction.InitialDealAction(
-                    train_cards={
-                        player: self._deal_train_cards(
-                            self.box.starting_train_cards_count
-                        )
-                        for player in self.box.players
-                    },
-                    destination_cards={
-                        player: self._deal_destination_cards(
-                            self.box.starting_destination_cards_range[1]
-                        )
-                        for player in self.box.players
-                    },
+                    train_cards=frozendict(
+                        {
+                            player: self._deal_train_cards(
+                                self.box.starting_train_cards_count
+                            )
+                            for player in self.box.players
+                        }
+                    ),
+                    destination_cards=frozendict(
+                        {
+                            player: self._deal_destination_cards(
+                                self.box.starting_destination_cards_range[1]
+                            )
+                            for player in self.box.players
+                        }
+                    ),
                     face_up_train_cards=self._deal_train_cards(
                         self.box.face_up_train_cards
                     ),
                 )
             elif isinstance(self.turn_state, gturn.RevealFinalDestinationCardsTurn):
                 return gaction.RevealFinalDestinationCardsAction(
-                    {
-                        player: frozenset(hand.destination_cards)
-                        for player, hand in self.player_hands.items()
-                    }
+                    frozendict(
+                        {
+                            player: frozenset(hand.destination_cards)
+                            for player, hand in self.player_hands.items()
+                        }
+                    )
                 )
             else:
                 assert_never(self.turn_state)
@@ -505,7 +531,7 @@ class SimulatedGameActor(GameActor):
             raise TrainsException(f"Unexpected turn state {type(self.turn_state)}")
 
     def _deal_train_cards(self, count: int) -> TrainCards:
-        cards: TrainCards = TrainCards()
+        cards: DefaultDict[TrainCard, int] = defaultdict(int)
         for _ in range(count):
             if len(self.train_card_pile) == 0:
                 # need to reshuffle deck
@@ -519,7 +545,7 @@ class SimulatedGameActor(GameActor):
                 ]
                 random.shuffle(self.train_card_pile)
             cards[self.train_card_pile.pop()] += 1
-        return cards
+        return TrainCards(cards)
 
     def _deal_destination_cards(self, count: int) -> FrozenSet[DestinationCard]:
         destination_cards: List[DestinationCard] = []

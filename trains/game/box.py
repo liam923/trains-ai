@@ -15,17 +15,12 @@ from typing import (
     Union,
     TypeVar,
     Type,
+    Any,
 )
 
+from frozendict import frozendict
+
 from trains.mypy_util import cache
-
-_KT = TypeVar("_KT")
-_VT = TypeVar("_VT")
-
-
-class HashableDict(Dict[_KT, _VT]):
-    def __hash__(self) -> int:  # type: ignore
-        return hash(tuple(self.items()))
 
 
 @dataclass(frozen=True)
@@ -55,7 +50,7 @@ class Route:
 class Board:
     cities: FrozenSet[City]
     routes: FrozenSet[Route]
-    double_routes: HashableDict[Route, FrozenSet[Route]]
+    double_routes: frozendict[Route, FrozenSet[Route]]
 
     @classmethod
     def make(cls, routes: List[Tuple[str, str, Optional[str], int]]) -> Board:
@@ -85,7 +80,7 @@ class Board:
         return Board(
             cities=frozenset(cities.values()),
             routes=frozenset(board_routes),
-            double_routes=HashableDict(double_routes),
+            double_routes=frozendict(double_routes),
         )
 
     @property  # type: ignore
@@ -104,9 +99,7 @@ class Board:
     def _shortest_paths(self) -> Dict[FrozenSet[City], int]:
         # compute the shortest paths for all pairs of cities using Floyd-Warshal
 
-        costs = {
-            route.cities: route.length for route in self.routes
-        }
+        costs = {route.cities: route.length for route in self.routes}
 
         for city_k in self.cities:
             for city_i in self.cities:
@@ -119,6 +112,7 @@ class Board:
                             costs[i_j] = costs[i_k] + costs[k_j]
 
         return costs
+
 
 @dataclass(frozen=True)
 class DestinationCard:
@@ -140,33 +134,17 @@ TrainCard = Optional[Color]  # None represents a wildcard
 _TrainCard = TypeVar("_TrainCard", bound=TrainCard)  # needed because mypy is stupid
 
 
-class TrainCards(DefaultDict[TrainCard, int]):
-    def __init__(
-        self,
-        cards: Union[
-            Iterable[Tuple[_TrainCard, int]], Dict[_TrainCard, int], Type[int], None
-        ] = None,
-    ):
-        if isinstance(cards, dict):
-            super().__init__(int, cards.items())
-        elif cards is None:
-            super().__init__(int, {})
-        elif isinstance(cards, type):
-            super().__init__(cards)
-        else:
-            super().__init__(int, cards)
-
-        self._total = sum(self.values())
-
-    @property
+class TrainCards(frozendict[TrainCard, int]):
+    @property  # type: ignore
+    @cache
     def total(self) -> int:
-        return self._total
+        return sum(self.values())
 
     @property  # type: ignore
     @cache
     def normalized(self) -> DefaultDict[TrainCard, float]:
         return defaultdict(
-            int, {color: count / self._total for color, count in self.items()}
+            int, {color: count / self.total for color, count in self.items()}
         )
 
     def replacing(self, key: TrainCard, value: int) -> TrainCards:
@@ -175,22 +153,15 @@ class TrainCards(DefaultDict[TrainCard, int]):
         return TrainCards(train_cards)
 
     def incrementing(self, key: TrainCard, value: int) -> TrainCards:
-        return self.replacing(key, self[key] + value)
+        train_cards = defaultdict(int, self)
+        train_cards[key] += value
+        return TrainCards(train_cards)
 
-    def __hash__(self) -> int:  # type: ignore
-        return hash(tuple(self.items()))
-
-
-class MutableTrainCards(TrainCards):
-    @property
-    def total(self) -> int:
-        return sum(self.values())
-
-    @property
-    def normalized(self) -> DefaultDict[TrainCard, float]:
-        return defaultdict(
-            int, {color: count / self._total for color, count in self.items()}
-        )
+    def __getitem__(self, item: TrainCard) -> int:
+        if item in self:
+            return super().__getitem__(item)
+        else:
+            return 0
 
 
 @dataclass(frozen=True)
@@ -236,7 +207,7 @@ class Box:
     trains_to_end: int
     wildcards_to_clear: int
     face_up_train_cards: int
-    route_point_values: HashableDict[int, int]
+    route_point_values: frozendict[int, int]
 
     @property  # type: ignore
     @cache
@@ -413,7 +384,7 @@ class Box:
             trains_to_end=2,
             wildcards_to_clear=3,
             face_up_train_cards=5,
-            route_point_values=HashableDict(
+            route_point_values=frozendict(
                 {
                     1: 1,
                     2: 2,
@@ -451,7 +422,7 @@ class Box:
                 ]
             ),
             train_cards=TrainCards({Color("red"): 10, Color("blue"): 10, None: 8}),
-            starting_train_count=5,
+            starting_train_count=3,
             starting_destination_cards_range=(1, 2),
             dealt_destination_cards_range=(1, 2),
             starting_train_cards_count=1,
@@ -461,5 +432,5 @@ class Box:
             trains_to_end=1,
             wildcards_to_clear=2,
             face_up_train_cards=2,
-            route_point_values=HashableDict({1: 1, 2: 3}),
+            route_point_values=frozendict({1: 1, 2: 3}),
         )

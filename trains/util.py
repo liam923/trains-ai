@@ -1,10 +1,21 @@
 from __future__ import annotations
 
+import random
+from collections import defaultdict
 from copy import deepcopy
 from dataclasses import dataclass
-from typing import Tuple, TypeVar, Generic, Optional, Iterable, Generator
+from typing import (
+    Tuple,
+    TypeVar,
+    Generic,
+    Optional,
+    Iterable,
+    Generator,
+    DefaultDict,
+    Dict,
+)
 
-from trains.game.box import TrainCards, Route
+from trains.game.box import TrainCards, Route, TrainCard
 from trains.mypy_util import cache
 
 
@@ -21,11 +32,11 @@ def sufficient_cards_to_build(
 
 
 def merge_train_cards(*cards: TrainCards) -> TrainCards:
-    result_cards = TrainCards()
+    result_cards: DefaultDict[TrainCard, int] = defaultdict(int)
     for card_set in cards:
         for color, count in card_set.items():
             result_cards[color] += count
-    return result_cards
+    return TrainCards(result_cards)
 
 
 def subtract_train_cards(
@@ -35,15 +46,15 @@ def subtract_train_cards(
     Subtract the second set of train cards from the first set. Return (the resultant
     cards, the leftover cards)
     """
-    new_cards = deepcopy(original)
-    extras = TrainCards()
-    for color, count in minus.items():
+    new_cards: Dict[TrainCard, int] = {}
+    extras: Dict[TrainCard, int] = {}
+    for color in original.keys() | minus.keys():
         diff = original[color] - minus[color]
-        if diff >= 0:
-            new_cards[color] -= diff
-        else:
-            extras[color] -= diff
-    return new_cards, extras
+        if diff > 0:
+            new_cards[color] = diff
+        elif diff < 0:
+            extras[color] = -diff
+    return TrainCards(new_cards), TrainCards(extras)
 
 
 def probability_of_having_cards(
@@ -142,3 +153,20 @@ class Cons(Generic[_T]):
         if l is not None:
             yield l.head
             yield from Cons.iterate(l.rest)
+
+
+def randomly_sample_distribution(
+    iterable: Iterable[Tuple[_T, float]], sample_size: int
+) -> Generator[_T, None, None]:
+    """
+    Randomly sample a number of elements from a distribution
+    """
+    collected = list(iterable)
+    for _ in range(sample_size):
+        rand = random.random()
+        i = 0
+        cum = collected[i][1]
+        while rand < cum and i < len(collected) - 1:
+            i += 1
+            cum += collected[i][1]
+        yield collected[i][0]
