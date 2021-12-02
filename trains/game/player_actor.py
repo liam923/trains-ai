@@ -78,7 +78,7 @@ class UserActor(PlayerActor):
         print(f"Face up train cards: {colors}")
 
     def observe_action(self, action: Action) -> None:
-        if isinstance(self.turn_state, gturn.PlayerTurn) and self.turn_state.player != self.state.player:
+        if isinstance(self.turn_state, gturn.PlayerTurn):
             if isinstance(action, gaction.BuildAction):
                 cities = list(action.route.cities)
                 colors = " and ".join(

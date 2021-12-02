@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import itertools
 import random
 from abc import ABC
 from collections import defaultdict
@@ -30,6 +31,7 @@ from trains.game.box import (
     TrainCards,
     frozendict,
 )
+from trains.game.clusters import Clusters
 from trains.game.player_actor import PlayerActor
 from trains.game.turn import TurnState
 from trains.mypy_util import assert_never
@@ -404,10 +406,7 @@ class GameActor(Actor, ABC):
         return isinstance(self.turn_state, gturn.GameOverTurn)
 
     @property
-    def winner(self) -> Optional[Player]:
-        if not self.is_over:
-            return None
-
+    def scores(self) -> Dict[Player, int]:
         player_score_infos = {
             player: self._get_player_score_info(player) for player in self.box.players
         }
@@ -423,16 +422,37 @@ class GameActor(Actor, ABC):
                     path_length,
                 )
 
-        # TODO: add in tiebreakers
+        return {player: score for player, (score, _) in player_score_infos.items()}
 
-        return max(player_score_infos.items(), key=lambda t: t[1][0])[0]
-
-    def _get_player_score_info(self, player: Player) -> Tuple[float, int]:
+    def _get_player_score_info(self, player: Player) -> Tuple[int, int]:
         """
         Calculate the player's score from routes and destination cards, along with the
         length of their longest route.
         """
-        return 0, 0  # TODO
+        built_routes = {
+            route for route, builder in self.built_routes.items() if builder == player
+        }
+        clusters = Clusters(frozenset(), self.box.board.shortest_paths)
+        for route in built_routes:
+            clusters.connect(*route.cities)
+
+        cards_points = sum(
+            card.value * (1 if clusters.is_connected(card.cities) else -1)
+            for card in self.player_hands[player].destination_cards
+        )
+        routes_points = sum(
+            self.box.route_point_values[route.length] for route in built_routes
+        )
+        longest = max(
+            (
+                self.box.board.shortest_path(*cities)
+                for cluster in clusters.clusters
+                for cities in itertools.combinations(cluster, 2)
+            ),
+            default=0,
+        )
+
+        return cards_points + routes_points, longest
 
 
 @dataclass  # type: ignore
@@ -567,7 +587,7 @@ def play_game(players: Dict[Player, PlayerActor], game: GameActor) -> None:
     actors: List[Actor] = list(players.values()) + [game]  # type: ignore
 
     history = []
-    while game.winner is None:
+    while not game.is_over:
         for p_actor in players.values():
             assert (
                 p_actor.turn_state == game.turn_state
@@ -596,4 +616,5 @@ def play_game(players: Dict[Player, PlayerActor], game: GameActor) -> None:
             for actor in actors:
                 actor.observe_action(action)
 
-    print(f"{game.winner.name} wins")
+    for player, score in game.scores.items():
+        print(f"{player} scored {score}")

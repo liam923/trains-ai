@@ -66,6 +66,20 @@ class KnownHandState:
     complete_destination_cards: FrozenSet[DestinationCard]
     incomplete_destination_cards: FrozenSet[DestinationCard]
 
+    def to_observed_hand_state(self) -> ObservedHandState:
+        return ObservedHandState(
+            known_destination_cards=self.destination_cards,
+            destination_cards_count=len(self.destination_cards),
+            known_unselected_destination_cards=self.unselected_destination_cards,
+            unselected_destination_cards_count=len(self.unselected_destination_cards),
+            known_train_cards=self.train_cards,
+            train_cards_count=self.train_cards.total,
+            remaining_trains=self.remaining_trains,
+            known_points_so_far=self.points_so_far,
+            known_complete_destination_cards=self.complete_destination_cards,
+            known_incomplete_destination_cards=self.incomplete_destination_cards,
+        )
+
 
 @dataclass(frozen=True)
 class State:
@@ -98,9 +112,13 @@ class State:
     destination_card_pile_distribution: FrozenSet[DestinationCard]
     destination_card_pile_size: int
     built_routes: frozendict[Route, Player]
-    built_clusters: frozendict[Player, Clusters[City]]
+    built_clusters: frozendict[Player, Clusters]
     turn_state: TurnState
     revealed_destination_cards: Optional[frozendict[Player, FrozenSet[DestinationCard]]]
+
+    @property
+    def player_hands(self) -> Dict[Player, ObservedHandState]:
+        return {**self.player_hands, self.player: self.hand.to_observed_hand_state()}
 
     @classmethod
     def make(cls, box: Box, player: Player) -> State:
@@ -140,7 +158,12 @@ class State:
             destination_card_pile_distribution=box.destination_cards,
             destination_card_pile_size=len(box.destination_cards),
             built_routes=frozendict({}),
-            built_clusters=frozendict({player: Clusters() for player in box.players}),
+            built_clusters=frozendict(
+                {
+                    player: Clusters(frozenset(), box.board.shortest_paths)
+                    for player in box.players
+                }
+            ),
             turn_state=gturn.InitialTurn(),
             revealed_destination_cards=None,
         )
@@ -280,7 +303,7 @@ class State:
                 )
             elif isinstance(action, gaction.BuildAction):
                 new_cluster = self.built_clusters[self.turn_state.player].connect(
-                    action.route.cities
+                    *action.route.cities
                 )
                 if self.turn_state.player == self.player:
                     completed_destination_cards = {

@@ -92,11 +92,14 @@ class Board:
         return d
 
     def shortest_path(self, from_city: City, to_city: City) -> int:
-        return self._shortest_paths[frozenset([from_city, to_city])]
+        if from_city == to_city:
+            return 0
+        else:
+            return self.shortest_paths[frozenset([from_city, to_city])]
 
     @property  # type: ignore
     @cache
-    def _shortest_paths(self) -> Dict[FrozenSet[City], int]:
+    def shortest_paths(self) -> frozendict[FrozenSet[City], int]:
         # compute the shortest paths for all pairs of cities using Floyd-Warshal
 
         costs = {route.cities: route.length for route in self.routes}
@@ -104,14 +107,32 @@ class Board:
         for city_k in self.cities:
             for city_i in self.cities:
                 for city_j in self.cities:
-                    i_k = frozenset([city_i, city_k])
-                    k_j = frozenset([city_k, city_j])
-                    i_j = frozenset([city_i, city_j])
-                    if i_k in costs and k_j in costs:
-                        if i_j not in costs or costs[i_k] + costs[k_j] < costs[i_j]:
-                            costs[i_j] = costs[i_k] + costs[k_j]
+                    if city_i != city_j and city_i != city_k and city_j != city_k:
+                        i_k = frozenset([city_i, city_k])
+                        k_j = frozenset([city_k, city_j])
+                        i_j = frozenset([city_i, city_j])
+                        if i_k in costs and k_j in costs:
+                            if i_j not in costs or costs[i_k] + costs[k_j] < costs[i_j]:
+                                costs[i_j] = costs[i_k] + costs[k_j]
 
-        return costs
+        return frozendict(costs)
+
+    def routes_from_city(self, city: City) -> FrozenSet[Tuple[City, Route]]:
+        return self._routes_from_city[city]
+
+    @property  # type: ignore
+    @cache
+    def _routes_from_city(self) -> frozendict[City, FrozenSet[Tuple[City, Route]]]:
+        city_to_routes: Dict[City, List[Tuple[City, Route]]] = {
+            city: [] for city in self.cities
+        }
+        for route in self.routes:
+            for city in route.cities:
+                city_to_routes[city].append((list(route.cities - {city})[0], route))
+
+        return frozendict(
+            (city, frozenset(routes)) for city, routes in city_to_routes.items()
+        )
 
 
 @dataclass(frozen=True)
@@ -426,7 +447,7 @@ class Box:
             starting_destination_cards_range=(1, 2),
             dealt_destination_cards_range=(1, 2),
             starting_train_cards_count=1,
-            longest_path_bonus=5,
+            longest_path_bonus=0,
             starting_score=1,
             double_routes_player_minimum=3,
             trains_to_end=1,

@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+import heapq
+import queue
 import random
 from collections import defaultdict
 from copy import deepcopy
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import (
     Tuple,
     TypeVar,
@@ -13,9 +15,14 @@ from typing import (
     Generator,
     DefaultDict,
     Dict,
+    FrozenSet,
+    Collection,
+    List,
+    Set,
 )
 
-from trains.game.box import TrainCards, Route, TrainCard
+from trains.game.box import TrainCards, Route, TrainCard, City, Board, Box
+from trains.game.clusters import Clusters
 from trains.mypy_util import cache
 
 
@@ -170,3 +177,113 @@ def randomly_sample_distribution(
             i += 1
             cum += collected[i][1]
         yield collected[i][0]
+
+
+@dataclass(order=True)
+class PrioritizedItem(Generic[_T]):
+    priority: int
+    item: _T = field(compare=False)
+
+
+def best_routes(
+    from_city: City,
+    to_city: City,
+    player_built_routes: Clusters,
+    opponent_built_routes: Collection[Route],
+    box: Box,
+) -> Generator[FrozenSet[Route], None, None]:
+    """
+    Find all optimal paths from one city to another. player_built_routes represents the
+    routes already built by the user, and opponent_built_routes represents the routes
+    already built by other users.
+
+    Note that the returned optimal paths do not include routes already built.
+    """
+    # Use a slightly modified A* search to find all the shortest paths between the
+    # two cities. Instead of terminating once the goal is reached, it notes the optimal
+    # length. It then continues until all priorities in the queue are greater than the
+    # optimal length.
+
+    # The heuristic used is simply the distance between cities according to
+    # built_clusters, which is admissible because that is the optimal distance if there
+    # are no routes built by opponents blocking the path
+
+    blocked_routes = set(opponent_built_routes)
+    if len(box.players) < box.double_routes_player_minimum:
+        for route in opponent_built_routes:
+            blocked_routes.update(box.board.double_routes[route])
+
+    start = player_built_routes.get_cluster_for_city(from_city)
+    goal = player_built_routes.get_cluster_for_city(to_city)
+
+    optimal_length: Optional[int] = None
+    frontier: List[
+        PrioritizedItem[Tuple[FrozenSet[City], Optional[Cons[Route]], int]]
+    ] = []
+    queue_item: PrioritizedItem[
+        Tuple[FrozenSet[City], Optional[Cons[Route]], int]
+    ] = PrioritizedItem(0, (start, None, 0))
+    heapq.heappush(frontier, queue_item)
+    while len(frontier) > 0 and (
+        optimal_length is None or frontier[0].priority <= optimal_length
+    ):
+        current_cluster, current_path, current_cost = heapq.heappop(frontier).item
+
+        if current_cluster == goal:
+            optimal_length = current_cost
+            yield frozenset(Cons.iterate(current_path))
+
+        for current_city in current_cluster:
+            for successor, route in box.board.routes_from_city(current_city):
+                if successor not in current_cluster and route not in blocked_routes:
+                    successor_cluster = player_built_routes.get_cluster_for_city(
+                        successor
+                    )
+                    cost = player_built_routes.distance(current_city, successor)
+                    successor_cost = current_cost + cost
+                    successor_path = Cons(route, current_path)
+                    successor_priority = successor_cost + player_built_routes.distance(
+                        successor, to_city
+                    )
+
+                    queue_item = PrioritizedItem(
+                        successor_priority,
+                        (successor_cluster, successor_path, successor_cost),
+                    )
+                    heapq.heappush(frontier, queue_item)
+
+
+def cards_needed_to_build_routes(
+    cards_in_hand: TrainCards, routes: Collection[Route]
+) -> int:
+    cards_remaining = defaultdict(int, cards_in_hand)
+    needed_cards = 0
+
+    colored_routes = {route for route in routes if route.color is not None}
+    gray_routes = {route for route in routes if route.color is None}
+
+    for route in colored_routes:
+        if route.length >= cards_remaining[route.color]:
+            needed_cards += route.length - cards_remaining[route.color]
+            cards_remaining[route.color] = 0
+        else:
+            cards_remaining[route.color] -= route.length
+
+    colored_cards_remaining = [
+        (-count, color.name, color)
+        for color, count in cards_remaining.items()
+        if color is not None
+    ]
+    heapq.heapify(colored_cards_remaining)
+    for route in sorted(gray_routes, reverse=True, key=lambda r: r.length):
+        neg_count, _, color = heapq.heappop(colored_cards_remaining)
+        count = -neg_count
+        if route.length >= count:
+            needed_cards += route.length - count
+        else:
+            heapq.heappush(
+                colored_cards_remaining, ((count - route.length), color.name, color)
+            )
+
+    needed_cards = max(needed_cards - cards_in_hand[None], 0)
+    return needed_cards

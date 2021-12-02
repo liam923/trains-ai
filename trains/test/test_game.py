@@ -29,7 +29,7 @@ def test_gameplay(
 
     actors: List[Actor] = list(player_actors.values()) + [game]  # type: ignore
     history: List[Tuple[TurnState, Action]] = []
-    while game.winner is None:
+    while not game.is_over:
         for p, player in player_actors.items():
             assert player.turn_state == game.turn_state
             assert player.state.face_up_train_cards == game.face_up_train_cards
@@ -80,5 +80,3 @@ def test_gameplay(
         history.append((game.turn_state, action))
         for actor in actors:
             actor.observe_action(action)
-
-    assert game.winner is not None

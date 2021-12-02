@@ -17,8 +17,8 @@ if __name__ == "__main__":
                 Player("two"),
                 utility_function=BuildRoutesUf(),
                 route_building_probability_calculator=DummyRbpc,
-                depth=3,
-                breadth=lambda _: 10
+                depth=6,
+                breadth=lambda _: 10,
             ),
         },
         SimulatedGameActor.make(box),
