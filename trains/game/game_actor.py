@@ -588,14 +588,6 @@ def play_game(players: Dict[Player, PlayerActor], game: GameActor) -> None:
 
     history = []
     while not game.is_over:
-        for p_actor in players.values():
-            assert (
-                p_actor.turn_state == game.turn_state
-            ), f"{p_actor.turn_state} != {game.turn_state}"
-            assert (
-                p_actor.state.face_up_train_cards == game.face_up_train_cards
-            ), f"{p_actor.state.face_up_train_cards} != {game.face_up_train_cards}"
-
         if game.turn_state.player is None:
             action = game.get_action()
         else:
