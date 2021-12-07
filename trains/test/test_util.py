@@ -253,6 +253,7 @@ def test_best_routes(
 @pytest.mark.parametrize(
     "train_cards, routes, expected",
     [
+        (TrainCards(), (A_E, A_C), 3),
         (TrainCards({red: 0}), (A_E, A_C), 3),
         (TrainCards({red: 1}), (A_E, A_C), 2),
         (TrainCards({red: 2}), (A_E, A_C), 1),
@@ -265,6 +266,7 @@ def test_best_routes(
         (TrainCards({red: 0, blue: 0}), (A_E, C_D_grey, B_C), 4),
         (TrainCards({red: 0, blue: 2}), (A_E, C_D_grey, B_C), 2),
         (TrainCards({red: 2, blue: 2}), (A_E, C_D_grey, B_C), 0),
+        (TrainCards({red: 1, None: 1}), (A_E, D_E), 1),
     ],
 )
 def test_cards_needed_to_build_routes(

@@ -273,14 +273,17 @@ def cards_needed_to_build_routes(
     ]
     heapq.heapify(colored_cards_remaining)
     for route in sorted(gray_routes, reverse=True, key=lambda r: r.length):
-        neg_count, _, color = heapq.heappop(colored_cards_remaining)
-        count = -neg_count
-        if route.length >= count:
-            needed_cards += route.length - count
+        if len(colored_cards_remaining) == 0:
+            needed_cards += route.length
         else:
-            heapq.heappush(
-                colored_cards_remaining, ((count - route.length), color.name, color)
-            )
+            neg_count, _, color = heapq.heappop(colored_cards_remaining)
+            count = -neg_count
+            if route.length >= count:
+                needed_cards += route.length - count
+            else:
+                heapq.heappush(
+                    colored_cards_remaining, ((count - route.length), color.name, color)
+                )
 
     needed_cards = max(needed_cards - cards_in_hand[None], 0)
     return needed_cards
