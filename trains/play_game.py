@@ -7,7 +7,7 @@ from trains.game.player_actor import UserActor
 
 if __name__ == "__main__":
     players = [Player("User"), Player("AI")]
-    box = Box.small(players)
+    box = Box.new_york(players)
     play_game(
         # {player: UserActor.make(box, player) for player in players},
         {
@@ -17,8 +17,8 @@ if __name__ == "__main__":
                 Player("AI"),
                 utility_function=BuildRoutesUf(),
                 route_building_probability_calculator=DummyRbpc,
-                depth=3,
-                breadth=lambda _: 10,
+                depth=2,
+                breadth=lambda depth: None if depth >= 1 else 10,
             ),
         },
         SimulatedGameActor.make(box),

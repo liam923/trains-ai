@@ -33,7 +33,7 @@ class MctsExpectiminimaxActor(AiActor):
     breadth: Callable[[int], Optional[int]] = field(default=lambda x: None)
 
     def get_action(self) -> Action:
-        action = self._score_state(self.state, self.depth)[1]
+        action = self._score_state(self.state, self.depth - 1)[1]
         assert (
             action is not None
         ), "_score_state returned None; check that depth > 0 and it is the player's turn"
