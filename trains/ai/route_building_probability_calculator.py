@@ -2,11 +2,11 @@ from abc import ABC, abstractmethod
 from typing import Optional, FrozenSet
 
 from trains.game.box import DestinationCard
-from trains.game.state import State
+from trains.game.observed_state import ObservedState
 
 
 class RouteBuildingProbabilityCalculator(ABC):
-    def __init__(self, state: State):
+    def __init__(self, state: ObservedState):
         self.state = state
 
     def probability_of_building_routes(

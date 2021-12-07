@@ -1,10 +1,10 @@
 from __future__ import annotations
 
-from typing import FrozenSet, Generic, TypeVar, Hashable, Any
+from typing import FrozenSet, Any
 
 from frozendict import frozendict
 
-from trains.game.box import City, Board
+from trains.game.box import City
 
 
 class Clusters:

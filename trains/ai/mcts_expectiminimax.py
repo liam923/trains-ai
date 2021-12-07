@@ -10,7 +10,7 @@ from trains.ai.route_building_probability_calculator import (
 )
 from trains.ai.utility_function import UtilityFunction, Utility
 from trains.game.action import Action
-from trains.game.state import State
+from trains.game.observed_state import ObservedState
 from trains.mypy_util import assert_never, cache
 from trains.util import randomly_sample_distribution
 
@@ -27,7 +27,7 @@ class MctsExpectiminimaxActor(AiActor):
 
     utility_function: UtilityFunction
     route_building_probability_calculator: Callable[
-        [State], RouteBuildingProbabilityCalculator
+        [ObservedState], RouteBuildingProbabilityCalculator
     ]
     depth: int
     breadth: Callable[[int], Optional[int]] = field(default=lambda x: None)
@@ -41,9 +41,9 @@ class MctsExpectiminimaxActor(AiActor):
 
     def _score_state(
         self,
-        state: State,
+        state: ObservedState,
         current_depth: int,
-    ) -> Tuple[Utility, Optional[Action], Optional[State]]:
+    ) -> Tuple[Utility, Optional[Action], Optional[ObservedState]]:
         """
         Calculate a utility for the given state. If the state's turn state is a
         player state and depth > 0, also return the optimal action and resulting state
@@ -51,7 +51,7 @@ class MctsExpectiminimaxActor(AiActor):
         """
 
         @cache
-        def _score_state(next_state: State) -> Utility:
+        def _score_state(next_state: ObservedState) -> Utility:
             """
             A helper to recursively call _score_state without worrying about params
             besides state and only returning the utility

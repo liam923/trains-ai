@@ -126,14 +126,6 @@ class TrainCardDealTurn(GameTurn):
 
 
 @dataclass(frozen=True)
-class RevealInitialDestinationCardChoicesTurn(GameTurn):
-    """
-    Represents the game revealing to players how many destination cards they each chose
-    to keep.
-    """
-
-
-@dataclass(frozen=True)
 class RevealFinalDestinationCardsTurn(GameTurn):
     """
     Represents the game revealing to players how which destination cards they each
@@ -150,6 +142,5 @@ TurnState = Union[
     InitialTurn,
     DestinationCardDealTurn,
     TrainCardDealTurn,
-    RevealInitialDestinationCardChoicesTurn,
     RevealFinalDestinationCardsTurn,
 ]

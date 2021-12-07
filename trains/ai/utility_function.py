@@ -14,12 +14,16 @@ from typing import (
     DefaultDict,
     Tuple,
     Type,
-    FrozenSet,
+    Generic,
 )
-import trains.game.turn as gturn
 
-from trains.game.box import Player, DestinationCard, Box
-from trains.game.state import State, ObservedHandState
+from trains.game.box import Player, Box
+from trains.game.state import (
+    ObservedHandState,
+    AbstractState,
+    State,
+    HandState,
+)
 from trains.mypy_util import cache
 from trains.util import best_routes, cards_needed_to_build_routes
 
@@ -76,7 +80,7 @@ class Utility(DefaultDict[Optional[Player], float]):
         return functools.reduce(operator.add, utilities, cls())
 
 
-class UtilityFunction(ABC):
+class UtilityFunction(Generic[State], ABC):
     def __call__(self, state: State) -> Utility:
         return self.calculate_utility(state)
 
@@ -85,12 +89,12 @@ class UtilityFunction(ABC):
         pass
 
 
-class BuildRoutesUf(UtilityFunction):
+class BuildRoutesUf(UtilityFunction[AbstractState]):
     """
     A utility function meant for testing that only rewards players for building routes.
     """
 
-    def calculate_utility(self, state: State) -> Utility:
+    def calculate_utility(self, state: AbstractState) -> Utility:
         utility = Utility()
         for player in state.box.players:
             route_points = sum(
@@ -98,18 +102,15 @@ class BuildRoutesUf(UtilityFunction):
                 for route, builder in state.built_routes.items()
                 if builder == player
             )
-            if player == state.player:
-                max_train_cards = max(state.hand.train_cards.values(), default=0)
-            else:
-                max_train_cards = max(
-                    state.opponent_hands[player].known_train_cards.values(), default=0
-                )
+            max_train_cards = max(
+                state.player_hands[player].known_train_cards.values(), default=0
+            )
             utility[player] = route_points + max_train_cards * 0.75
         return utility
 
 
 @dataclass
-class ExpectedScoreUf(UtilityFunction):
+class ExpectedScoreUf(UtilityFunction[AbstractState]):
     """
     Calculates an expect final score for each player.
 
@@ -141,7 +142,7 @@ class ExpectedScoreUf(UtilityFunction):
         )
     )  # obtained by playing around with desmos: https://www.desmos.com/calculator/lzes35garz
 
-    def calculate_utility(self, state: State) -> Utility:
+    def calculate_utility(self, state: AbstractState) -> Utility:
         remaining_moves = self._calculate_remaining_turns(state)
         utilities: Dict[Optional[Player], float] = {
             player: hand.known_points_so_far
@@ -151,7 +152,7 @@ class ExpectedScoreUf(UtilityFunction):
         }
         return Utility(utilities)
 
-    def _calculate_remaining_turns(self, state: State) -> float:
+    def _calculate_remaining_turns(self, state: AbstractState) -> float:
         return min(
             hand.remaining_trains / self._average_route_length(state.box)
             + (
@@ -165,10 +166,10 @@ class ExpectedScoreUf(UtilityFunction):
 
     def _calculate_additional_score(
         self,
-        state: State,
+        state: AbstractState,
         remaining_moves: float,
         player: Player,
-        hand: ObservedHandState,
+        hand: HandState,
     ) -> float:
         return self._calculate_additional_route_building_score(
             state, remaining_moves, player, hand
@@ -178,10 +179,10 @@ class ExpectedScoreUf(UtilityFunction):
 
     def _calculate_additional_route_building_score(
         self,
-        state: State,
+        state: AbstractState,
         remaining_moves: float,
         player: Player,
-        hand: ObservedHandState,
+        hand: HandState,
     ) -> float:
         # draw_turns = turns - building_turns
         # building_turns = (cards + draw_turns * avg_cards_per_draw - leftovers) / avg_length
@@ -205,10 +206,10 @@ class ExpectedScoreUf(UtilityFunction):
 
     def _calculate_additional_destination_cards_score(
         self,
-        state: State,
+        state: AbstractState,
         remaining_moves: float,
         player: Player,
-        hand: ObservedHandState,
+        hand: HandState,
     ) -> float:
         unknown_count = hand.destination_cards_count - len(hand.known_destination_cards)
 

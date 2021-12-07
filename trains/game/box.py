@@ -11,11 +11,7 @@ from typing import (
     Dict,
     Set,
     DefaultDict,
-    Iterable,
-    Union,
     TypeVar,
-    Type,
-    Any,
 )
 
 from frozendict import frozendict

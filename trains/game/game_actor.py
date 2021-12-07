@@ -159,11 +159,6 @@ class GameActor(Actor, ABC):
                 return None
             else:
                 return unexpected_action_message
-        elif isinstance(self.turn_state, gturn.RevealInitialDestinationCardChoicesTurn):
-            if isinstance(action, gaction.RevealDestinationCardSelectionsAction):
-                return None
-            else:
-                return unexpected_action_message
         elif isinstance(self.turn_state, gturn.GameOverTurn):
             if isinstance(action, gaction.PassAction):
                 return None
@@ -218,7 +213,9 @@ class GameActor(Actor, ABC):
                 ].unselected_destination_cards = frozenset()
                 next_player = self.box.next_player_map[self.turn_state.player]
                 if next_player == self.box.players[0]:
-                    return gturn.RevealInitialDestinationCardChoicesTurn()
+                    return gturn.PlayerStartTurn(
+                        last_turn_started=False, player=next_player
+                    )
                 else:
                     return gturn.PlayerInitialDestinationCardChoiceTurn(next_player)
             else:
@@ -342,11 +339,6 @@ class GameActor(Actor, ABC):
                         action.cards,
                     )
                 return self.turn_state.next_turn_state
-            else:
-                raise unexpected_action_error
-        elif isinstance(self.turn_state, gturn.RevealInitialDestinationCardChoicesTurn):
-            if isinstance(action, gaction.RevealDestinationCardSelectionsAction):
-                return gturn.PlayerStartTurn.make_or_end(False, self.box.players[0])
             else:
                 raise unexpected_action_error
         elif isinstance(self.turn_state, gturn.GameOverTurn):
@@ -501,17 +493,6 @@ class SimulatedGameActor(GameActor):
                 return gaction.DestinationCardDealAction(
                     self._deal_destination_cards(
                         self.box.dealt_destination_cards_range[1]
-                    )
-                )
-            elif isinstance(
-                self.turn_state, gturn.RevealInitialDestinationCardChoicesTurn
-            ):
-                return gaction.RevealDestinationCardSelectionsAction(
-                    frozendict(
-                        {
-                            player: len(hand.destination_cards)
-                            for player, hand in self.player_hands.items()
-                        }
                     )
                 )
             elif isinstance(self.turn_state, gturn.InitialTurn):

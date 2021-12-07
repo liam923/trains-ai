@@ -1,10 +1,8 @@
 from __future__ import annotations
 
 import heapq
-import queue
 import random
 from collections import defaultdict
-from copy import deepcopy
 from dataclasses import dataclass, field
 from typing import (
     Tuple,
@@ -18,10 +16,9 @@ from typing import (
     FrozenSet,
     Collection,
     List,
-    Set,
 )
 
-from trains.game.box import TrainCards, Route, TrainCard, City, Board, Box
+from trains.game.box import TrainCards, Route, TrainCard, City, Box
 from trains.game.clusters import Clusters
 from trains.mypy_util import cache
 

@@ -3,7 +3,7 @@ from __future__ import annotations
 import argparse
 from abc import ABC
 from dataclasses import dataclass
-from typing import Optional, Callable, FrozenSet, TypeVar, Type, Any
+from typing import Optional, Callable, FrozenSet, TypeVar, Type, Any, Generic
 
 import trains.game.action as gaction
 import trains.game.turn as gturn
@@ -11,25 +11,31 @@ from trains.error import TrainsException, ParserException
 from trains.game.action import Action
 from trains.game.actor import Actor
 from trains.game.box import Color, City, Box, Player, TrainCards
-from trains.game.state import State
+from trains.game.known_state import KnownState
+from trains.game.state import State, AbstractState
 
 _PlayerActor = TypeVar("_PlayerActor", bound="PlayerActor")
 
 
 @dataclass  # type: ignore
-class PlayerActor(Actor, ABC):
+class PlayerActor(Generic[State], Actor, ABC):
     """
     An abstract actor that represents an actor for a player
     """
 
     state: State
+    player: Player
 
     @classmethod
     def make(
-        cls: Type[_PlayerActor], box: Box, player: Player, **kwargs: Any
+        cls: Type[_PlayerActor],
+        box: Box,
+        player: Player,
+        state_type: Type[AbstractState] = KnownState,
+        **kwargs: Any,
     ) -> _PlayerActor:
-        state = State.make(box, player)
-        return cls(box=box, state=state, turn_state=state.turn_state, **kwargs)  # type: ignore
+        state = state_type.make(box, player)
+        return cls(box=box, state=state, player=player, turn_state=state.turn_state, **kwargs)  # type: ignore
 
     def validate_action(self, action: Action) -> Optional[str]:
         return None
@@ -56,18 +62,18 @@ class UserActor(PlayerActor):
     def print_state(self) -> None:
         colors = ", ".join(
             f"{count} {'wildcard' if color is None else color.name}"
-            for color, count in self.state.hand.train_cards.items()
+            for color, count in self.state.player_hand(self.player).train_cards.items()
             if count > 0
         )
         print(f"Train cards in hand: {colors}")
 
         print(
-            f"Destination cards: {', '.join(f'{card.cities_list[0].name}->{card.cities_list[1].name} for {card.value}' for card in self.state.hand.destination_cards)}"
+            f"Destination cards: {', '.join(f'{card.cities_list[0].name}->{card.cities_list[1].name} for {card.value}' for card in self.state.player_hand(self.player).destination_cards)}"
         )
 
-        if len(self.state.hand.unselected_destination_cards) > 0:
+        if len(self.state.player_hand(self.player).unselected_destination_cards) > 0:
             print(
-                f"Destination cards to select from: {', '.join(f'{card.cities_list[0].name}->{card.cities_list[1].name} for {card.value}' for card in self.state.hand.unselected_destination_cards)}"
+                f"Destination cards to select from: {', '.join(f'{card.cities_list[0].name}->{card.cities_list[1].name} for {card.value}' for card in self.state.player_hand(self.player).unselected_destination_cards)}"
             )
 
         colors = ", ".join(
@@ -104,11 +110,6 @@ class UserActor(PlayerActor):
                 else:
                     print(
                         f"{self.turn_state.player.name} drew a train card from the deck"
-                    )
-            elif isinstance(action, gaction.RevealDestinationCardSelectionsAction):
-                for player, count in action.kept_destination_cards.items():
-                    print(
-                        f"{self.turn_state.player.name} kept {count} destination cards"
                     )
             elif isinstance(action, gaction.PassAction):
                 print(f"{self.turn_state.player.name} chose to pass")
@@ -222,7 +223,9 @@ class UserActor(PlayerActor):
                 cards = []
                 cities_to_card = {
                     card.cities: card
-                    for card in self.state.hand.unselected_destination_cards
+                    for card in self.state.player_hand(
+                        self.player
+                    ).unselected_destination_cards
                 }
                 for cities in cmd.destination_cards:
                     if cities in cities_to_card:

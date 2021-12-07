@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import FrozenSet, Dict, Union
+from typing import FrozenSet, Union
 
 from trains.game.box import (
     DestinationCard,
@@ -74,16 +74,6 @@ class BuildAction:
 
 
 @dataclass(frozen=True)
-class RevealDestinationCardSelectionsAction:
-    """
-    Represents the game revealing to players what how many destination cards each player
-    selected at the start of the game
-    """
-
-    kept_destination_cards: frozendict[Player, int]
-
-
-@dataclass(frozen=True)
 class RevealFinalDestinationCardsAction:
     """
     Represents the game revealing to players what destination cards each one has at the
@@ -118,7 +108,6 @@ Action = Union[
     DestinationCardPickAction,
     DestinationCardSelectionAction,
     BuildAction,
-    RevealDestinationCardSelectionsAction,
     InitialDealAction,
     PassAction,
     RevealFinalDestinationCardsAction,

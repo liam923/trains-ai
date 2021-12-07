@@ -2,16 +2,6 @@ from typing import (
     NoReturn,
     TYPE_CHECKING,
     TypeVar,
-    Mapping,
-    Generic,
-    Iterable,
-    Type,
-    Any,
-    overload,
-    Iterator,
-    Dict,
-    Union,
-    OrderedDict,
 )
 
 

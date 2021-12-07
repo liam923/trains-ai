@@ -1,8 +1,8 @@
-from typing import Optional, FrozenSet, Set, Tuple, Collection
+from typing import Optional, Tuple, Collection
 
 import pytest
 
-from trains.game.box import TrainCards, Color, City, Route, Box, Board
+from trains.game.box import TrainCards, Color, City, Route, Box
 from trains.game.clusters import Clusters
 from trains.util import (
     probability_of_having_cards,
