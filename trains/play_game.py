@@ -6,18 +6,18 @@ from trains.game.game_actor import play_game, SimulatedGameActor
 from trains.game.player_actor import UserActor
 
 if __name__ == "__main__":
-    players = [Player("one"), Player("two")]
+    players = [Player("User"), Player("AI")]
     box = Box.small(players)
     play_game(
         # {player: UserActor.make(box, player) for player in players},
         {
-            Player("one"): UserActor.make(box, Player("one")),
-            Player("two"): MctsExpectiminimaxActor.make(
+            Player("User"): UserActor.make(box, Player("User")),
+            Player("AI"): MctsExpectiminimaxActor.make(
                 box,
-                Player("two"),
+                Player("AI"),
                 utility_function=BuildRoutesUf(),
                 route_building_probability_calculator=DummyRbpc,
-                depth=6,
+                depth=3,
                 breadth=lambda _: 10,
             ),
         },

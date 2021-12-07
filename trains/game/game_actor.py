@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import itertools
+import operator
 import random
 from abc import ABC
 from collections import defaultdict
@@ -399,24 +400,11 @@ class GameActor(Actor, ABC):
 
     @property
     def scores(self) -> Dict[Player, int]:
-        player_score_infos = {
-            player: self._get_player_score_info(player) for player in self.box.players
+        return {
+            player: self._get_player_score(player) for player in self.box.players
         }
 
-        # add in longest path bonus
-        longest_path = max(
-            path_length for _, path_length in player_score_infos.values()
-        )
-        for player, (raw_score, path_length) in player_score_infos.items():
-            if path_length == longest_path:
-                player_score_infos[player] = (
-                    raw_score + self.box.longest_path_bonus,
-                    path_length,
-                )
-
-        return {player: score for player, (score, _) in player_score_infos.items()}
-
-    def _get_player_score_info(self, player: Player) -> Tuple[int, int]:
+    def _get_player_score(self, player: Player) -> int:
         """
         Calculate the player's score from routes and destination cards, along with the
         length of their longest route.
@@ -426,7 +414,7 @@ class GameActor(Actor, ABC):
         }
         clusters = Clusters(frozenset(), self.box.board.shortest_paths)
         for route in built_routes:
-            clusters.connect(*route.cities)
+            clusters = clusters.connect(*route.cities)
 
         cards_points = sum(
             card.value * (1 if clusters.is_connected(card.cities) else -1)
@@ -435,16 +423,8 @@ class GameActor(Actor, ABC):
         routes_points = sum(
             self.box.route_point_values[route.length] for route in built_routes
         )
-        longest = max(
-            (
-                self.box.board.shortest_path(*cities)
-                for cluster in clusters.clusters
-                for cities in itertools.combinations(cluster, 2)
-            ),
-            default=0,
-        )
 
-        return cards_points + routes_points, longest
+        return cards_points + routes_points
 
 
 @dataclass  # type: ignore
