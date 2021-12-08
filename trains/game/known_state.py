@@ -402,7 +402,7 @@ class KnownState(AbstractState):
                 raise unexpected_action_error
         elif isinstance(self.turn_state, gturn.RevealFinalDestinationCardsTurn):
             if isinstance(action, gaction.RevealFinalDestinationCardsAction):
-                return self
+                return replace(self, turn_state=gturn.GameOverTurn())
             else:
                 raise unexpected_action_error
         else:

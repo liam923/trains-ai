@@ -400,9 +400,7 @@ class GameActor(Actor, ABC):
 
     @property
     def scores(self) -> Dict[Player, int]:
-        return {
-            player: self._get_player_score(player) for player in self.box.players
-        }
+        return {player: self._get_player_score(player) for player in self.box.players}
 
     def _get_player_score(self, player: Player) -> int:
         """

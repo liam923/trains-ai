@@ -21,7 +21,7 @@ from frozendict import frozendict
 from trains.game.action import Action
 from trains.game.box import DestinationCard, TrainCards, Player, Box, TrainCard, Route
 from trains.game.clusters import Clusters
-from trains.game.turn import TurnState
+from trains.game.turn import TurnState, GameOverTurn
 from trains.util import Cons, probability_of_having_cards
 
 
@@ -197,6 +197,12 @@ class AbstractState(ABC):
         prob = 1 / math.comb(len(destination_cards), cards)
         for result_cards in itertools.combinations(destination_cards, cards):
             yield frozenset(result_cards), prob
+
+    def is_game_over(self) -> bool:
+        return isinstance(self.turn_state, GameOverTurn)
+
+    def winner(self) -> Player:
+        return max(self.player_hands.items(), key=lambda p: p[1].known_points_so_far)[0]
 
 
 State = TypeVar("State", bound=AbstractState)

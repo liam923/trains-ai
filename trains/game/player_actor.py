@@ -84,7 +84,9 @@ class UserActor(PlayerActor):
         print(f"Face up train cards: {colors}")
 
         # TODO: for AI debugging; take out later
-        print(f"Opponent destination cards: {[[f'{card.cities_list[0].name}->{card.cities_list[1].name} for {card.value}' for card in hand.known_destination_cards] for player, hand in self.state.player_hands.items() if player != self.player]}")
+        print(
+            f"Opponent destination cards: {[[f'{card.cities_list[0].name}->{card.cities_list[1].name} for {card.value}' for card in hand.known_destination_cards] for player, hand in self.state.player_hands.items() if player != self.player]}"
+        )
 
     def observe_action(self, action: Action) -> None:
         if isinstance(self.turn_state, gturn.PlayerTurn):

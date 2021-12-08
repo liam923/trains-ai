@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import functools
-import math
 import operator
 from abc import abstractmethod, ABC
 from dataclasses import dataclass
@@ -14,12 +13,13 @@ from typing import (
     DefaultDict,
     Tuple,
     Type,
-    Generic,
+    Generic, Mapping,
 )
+
+import math
 
 from trains.game.box import Player, Box
 from trains.game.state import (
-    ObservedHandState,
     AbstractState,
     State,
     HandState,
@@ -36,21 +36,22 @@ class Utility(DefaultDict[Optional[Player], float]):
 
     def __init__(
         self,
-        cards: Union[
+        values: Union[
             Iterable[Tuple[Optional[Player], float]],
-            Dict[Optional[Player], float],
+            Mapping[Optional[Player], float],
+            Mapping[Player, float],
             Type[float],
             None,
         ] = None,
     ):
-        if isinstance(cards, dict):
-            super().__init__(float, cards.items())
-        elif cards is None:
+        if isinstance(values, Mapping):
+            super().__init__(float, values.items())
+        elif values is None:
             super().__init__(float, {})
-        elif isinstance(cards, type):
-            super().__init__(cards)
+        elif isinstance(values, type):
+            super().__init__(values)
         else:
-            super().__init__(float, cards)
+            super().__init__(float, values)
 
     def __add__(self, other: Union[Utility, float]) -> Utility:
         if isinstance(other, int) or isinstance(other, float):

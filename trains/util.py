@@ -160,14 +160,15 @@ class Cons(Generic[_T]):
 
 
 def randomly_sample_distribution(
-    iterable: Iterable[Tuple[_T, float]], sample_size: int
+    iterable: Iterable[Tuple[_T, float]], sample_size: int = 1
 ) -> Generator[_T, None, None]:
     """
     Randomly sample a number of elements from a distribution
     """
     collected = list(iterable)
+    total = sum(prob for _, prob in collected)
     for _ in range(sample_size):
-        rand = random.random()
+        rand = random.random() * total
         i = 0
         cum = collected[i][1]
         while rand < cum and i < len(collected) - 1:
