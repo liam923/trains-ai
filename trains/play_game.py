@@ -1,7 +1,9 @@
-from trains.ai.mcts import BasicMctsActor
+from trains.ai.mcts import BasicMctsActor, UfMctsActor
 from trains.ai.random import RandomActor
+from trains.ai.utility_function import ImprovedExpectedScoreUf
 from trains.game.box import Box, Player
 from trains.game.game_actor import play_game, SimulatedGameActor
+from trains.game.player_actor import UserActor
 
 if __name__ == "__main__":
     players = [Player("AI"), Player("User")]
@@ -9,7 +11,7 @@ if __name__ == "__main__":
     play_game(
         # {player: UserActor.make(box, player) for player in players},
         {
-            # Player("User"): UserActor.make(box, Player("User")),
+            Player("User"): UserActor.make(box, Player("User")),
             # Player("AI"): MctsExpectiminimaxActor.make(
             #     box,
             #     Player("AI"),
@@ -18,8 +20,9 @@ if __name__ == "__main__":
             #     depth=2,
             #     breadth=lambda depth: None if depth >= 1 else 10,
             # ),
-            Player("AI"): BasicMctsActor.make(box, Player("AI"), iterations=100),
-            Player("User"): RandomActor.make(box, Player("User")),
+            # Player("AI"): UfMctsActor.make(box, Player("AI"), iterations=1000, utility_function=ImprovedExpectedScoreUf()),
+            Player("AI"): BasicMctsActor.make(box, Player("AI"), iterations=10000),
+            # Player("User"): RandomActor.make(box, Player("User")),
         },
         SimulatedGameActor.make(box),
     )

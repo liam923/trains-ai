@@ -325,14 +325,8 @@ class ImprovedExpectedScoreUf(ExpectedScoreUf):
     ) -> float:
         unknown_count = hand.destination_cards_count - len(hand.known_destination_cards)
 
-        # Ideally want to find minimum number of trains to complete all destination
-        # cards, but it is an NP-Hard problem (travelling salesman reduces to it).
-        # Instead, sum the minimum number for each card, and reduce it down if it is
-        # a ridiculously high number. (The reason for this is best seen by an example.
-        # You may have three very long destination cards to complete, but there is
-        # high overlap. The sum is then a ridiculously large number. On the flip side,
-        # if there are a few cards that need only a few each, it is less likely for
-        # overlap).
+        # Use a heuristic to find the minimum number of trains to complete all
+        # destination cards.
         opponent_built_routes = [
             route for route, builder in state.built_routes.items() if builder != player
         ]

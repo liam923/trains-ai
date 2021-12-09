@@ -21,9 +21,6 @@ from trains.util import randomly_sample_distribution
 
 @dataclass
 class _Node:
-    """
-    Influenced by https://github.com/brilee/python_uct/blob/master/numpy_impl.py
-    """
 
     def __init__(self, state: KnownState, parent: Optional[Tuple[_Node, int]] = None):
         self.state = state
@@ -115,12 +112,12 @@ class _Node:
         while current_node.parent is not None:
             current_node.parent[0].children_visits[current_node.parent[1]] += 1
             current_node.visits += 1
-            if isinstance(current_node.state.turn_state, PlayerTurn):
+            if isinstance(current_node.parent[0].state.turn_state, PlayerTurn):
                 current_node.parent[0].children_utilities[
                     current_node.parent[1]
-                ] += utility[current_node.state.turn_state.player]
-            elif isinstance(current_node.state.turn_state, GameOverTurn) or isinstance(
-                current_node.state.turn_state, GameTurn
+                ] += utility[current_node.parent[0].state.turn_state.player]
+            elif isinstance(current_node.parent[0].state.turn_state, GameOverTurn) or isinstance(
+                current_node.parent[0].state.turn_state, GameTurn
             ):
                 pass
             else:
@@ -192,6 +189,15 @@ class BasicMctsActor(MctsActor):
 @dataclass
 class UfMctsActor(MctsActor):
     utility_function: UtilityFunction = ExpectedScoreUf()
+
+    def get_action(self) -> Action:
+        action = super().get_action()
+
+        print(f"Current: {self.utility_function(self.state)[self.player]}")
+        for pos_action in self.state.get_legal_actions():
+            print(f"{pos_action.action}: {self.utility_function(self.state.next_state(pos_action.action))[self.player]}")
+
+        return action
 
     def _get_state_winner(self, state: KnownState) -> Utility:
         return self.utility_function(state)
