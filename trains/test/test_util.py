@@ -7,7 +7,8 @@ from trains.game.clusters import Clusters
 from trains.util import (
     probability_of_having_cards,
     subtract_train_cards,
-    best_routes,
+    best_routes_between_cities,
+    best_routes_between_many_cities,
     cards_needed_to_build_routes,
 )
 
@@ -232,7 +233,7 @@ D_F = _small_board_route(D, F)
         (C, F, (A_C,), (D_F,), small_box, tuple()),
     ],
 )
-def test_best_routes(
+def test_best_routes_between_cities(
     from_city: City,
     to_city: City,
     player_built_routes: Collection[Route],
@@ -245,7 +246,43 @@ def test_best_routes(
         clusters = clusters.connect(*route.cities)
 
     actual = frozenset(
-        best_routes(from_city, to_city, clusters, frozenset(opponent_built_routes), box)
+        best_routes_between_cities(
+            from_city, to_city, clusters, frozenset(opponent_built_routes), box
+        )
+    )
+    expected_as_sets = frozenset(frozenset(ex) for ex in expected)
+    assert actual == expected_as_sets
+
+
+@pytest.mark.parametrize(
+    "city_pairs, player_built_routes, opponent_built_routes, box, expected",
+    [
+        (tuple(), tuple(), tuple(), small_box, (tuple(),)),
+        (((A, D),), tuple(), tuple(), small_box, ((A_C, C_D_blue), (A_C, C_D_grey))),
+        (
+            ((A, D), (B, E)),
+            tuple(),
+            tuple(),
+            small_box,
+            ((A_C, C_D_blue, B_C, D_E), (A_C, C_D_grey, B_C, D_E)),
+        ),
+    ],
+)
+def test_best_routes_between_many_cities(
+    city_pairs: Collection[Tuple[City, City]],
+    player_built_routes: Collection[Route],
+    opponent_built_routes: Collection[Route],
+    box: Box,
+    expected: Collection[Collection[Route]],
+):
+    clusters = Clusters(frozenset(), box.board.shortest_paths)
+    for route in player_built_routes:
+        clusters = clusters.connect(*route.cities)
+
+    actual = frozenset(
+        best_routes_between_many_cities(
+            city_pairs, clusters, frozenset(opponent_built_routes), box
+        )
     )
     expected_as_sets = frozenset(frozenset(ex) for ex in expected)
     assert actual == expected_as_sets

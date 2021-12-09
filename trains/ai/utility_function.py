@@ -26,7 +26,11 @@ from trains.game.state import (
     HandState,
 )
 from trains.mypy_util import cache
-from trains.util import best_routes, cards_needed_to_build_routes
+from trains.util import (
+    cards_needed_to_build_routes,
+    best_routes_between_cities,
+    best_routes_between_many_cities,
+)
 
 
 @dataclass(frozen=True)
@@ -231,7 +235,7 @@ class ExpectedScoreUf(UtilityFunction[AbstractState]):
         )
         known_best_routes = (
             (
-                best_routes(
+                best_routes_between_cities(
                     s,
                     t,
                     state.built_clusters[player],
@@ -309,3 +313,64 @@ class ExpectedScoreUf(UtilityFunction[AbstractState]):
     @cache
     def _average_leftover_train_cards(box: Box) -> float:
         return len(box.colors) / 3
+
+
+class ImprovedExpectedScoreUf(ExpectedScoreUf):
+    def _calculate_additional_destination_cards_score(
+        self,
+        state: AbstractState,
+        remaining_moves: float,
+        player: Player,
+        hand: HandState,
+    ) -> float:
+        unknown_count = hand.destination_cards_count - len(hand.known_destination_cards)
+
+        # Ideally want to find minimum number of trains to complete all destination
+        # cards, but it is an NP-Hard problem (travelling salesman reduces to it).
+        # Instead, sum the minimum number for each card, and reduce it down if it is
+        # a ridiculously high number. (The reason for this is best seen by an example.
+        # You may have three very long destination cards to complete, but there is
+        # high overlap. The sum is then a ridiculously large number. On the flip side,
+        # if there are a few cards that need only a few each, it is less likely for
+        # overlap).
+        opponent_built_routes = [
+            route for route, builder in state.built_routes.items() if builder != player
+        ]
+        paths = best_routes_between_many_cities(
+            (tuple(card.cities) for card in hand.known_incomplete_destination_cards),  # type: ignore
+            state.built_clusters[player],
+            opponent_built_routes,
+            state.box,
+        )
+        distance_per_path = (max(
+                        cards_needed_to_build_routes(hand.known_train_cards, path)
+                        - (hand.train_cards_count - hand.known_train_cards.total),
+                        0,
+                    ) for path in paths)
+
+        known_summed_distances = min(distance_per_path, default=0)
+        unknown_summed_distances = self._average_route_length(state.box) * unknown_count
+        total_distance = self.distance_normalizer(
+            known_summed_distances + unknown_summed_distances
+        )
+
+        cards_to_finish = max(
+            total_distance
+            + self._average_leftover_train_cards(state.box)
+            - hand.train_cards_count,
+            0,
+        )
+        turns_to_draw = cards_to_finish / self._average_cards_per_draw_turn(state.box)
+        turns_to_build = total_distance / self._average_route_length(state.box)
+        needed_turns = turns_to_draw + turns_to_build
+
+        probability_to_complete = self.finish_destinations_probability_estimator(
+            remaining_moves, needed_turns
+        )
+
+        known_values = sum(c.value for c in hand.known_incomplete_destination_cards)
+        unknown_values = unknown_count * self._average_route_value(state.box)
+
+        return probability_to_complete * (known_values + unknown_values) - (
+            1 - probability_to_complete
+        ) * (known_values + unknown_values)
