@@ -16,24 +16,25 @@ from typing import (
 
 from frozendict import frozendict
 
-from trains.mypy_util import cache
+from trains.mypy_util import cache, add_slots
 
 
+@add_slots
 @dataclass(frozen=True)
 class Color:
     name: str
 
-
+@add_slots
 @dataclass(frozen=True)
 class Player:
     name: str
 
-
+@add_slots
 @dataclass(frozen=True)
 class City:
     name: str
 
-
+@add_slots
 @dataclass(frozen=True)
 class Route:
     cities: FrozenSet[City]
@@ -41,7 +42,7 @@ class Route:
     length: int
     id: uuid.UUID = field(default_factory=lambda: uuid.uuid4())
 
-
+@add_slots
 @dataclass(frozen=True)
 class Board:
     cities: FrozenSet[City]
@@ -130,7 +131,7 @@ class Board:
             (city, frozenset(routes)) for city, routes in city_to_routes.items()
         )
 
-
+@add_slots
 @dataclass(frozen=True)
 class DestinationCard:
     cities: FrozenSet[City]
@@ -175,12 +176,10 @@ class TrainCards(frozendict[TrainCard, int]):
         return TrainCards(train_cards)
 
     def __getitem__(self, item: TrainCard) -> int:
-        if item in self:
-            return super().__getitem__(item)
-        else:
-            return 0
+        return super().get(item, 0)
 
 
+@add_slots
 @dataclass(frozen=True)
 class Box:
     """

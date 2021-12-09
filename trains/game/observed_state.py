@@ -738,7 +738,6 @@ class ObservedState(AbstractState):
             if self.destination_card_pile_size > 0:
                 yield ObservedState.LegalAction(gaction.DestinationCardPickAction())
             yield from get_train_card_draw_actions()
-            yield ObservedState.LegalAction(gaction.PassAction())
             if self.player == self.turn_state.player:
                 yield from get_build_actions(self.hand.train_cards, 0)
             else:

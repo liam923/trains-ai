@@ -13,22 +13,22 @@ import numpy as np
 from tqdm import tqdm
 
 from trains.ai.actor import AiActor
-from trains.ai.utility_function import Utility
+from trains.ai.utility_function import Utility, UtilityFunction, ExpectedScoreUf
 from trains.game.action import Action
 from trains.game.box import Player
-from trains.game.state import State
+from trains.game.known_state import KnownState
 from trains.game.turn import GameTurn, GameOverTurn, PlayerTurn
 from trains.mypy_util import assert_never
 from trains.util import randomly_sample_distribution
 
 
 @dataclass
-class _Node(Generic[State]):
+class _Node:
     """
     Influenced by https://github.com/brilee/python_uct/blob/master/numpy_impl.py
     """
 
-    def __init__(self, state: State, parent: Optional[Tuple[_Node, int]] = None):
+    def __init__(self, state: KnownState, parent: Optional[Tuple[_Node, int]] = None):
         self.state = state
         self.parent = parent
         self.children: Dict[Action, _Node] = {}
@@ -41,7 +41,7 @@ class _Node(Generic[State]):
             a.action: a.probability for a in self.untried_actions
         }
 
-    state: State
+    state: KnownState
     parent: Optional[Tuple[_Node, int]] = None
     children: Dict[Action, _Node] = field(default_factory=dict)
     children_utilities: np.ndarray = field(default_factory=partial(np.ndarray, []))
@@ -61,7 +61,7 @@ class _Node(Generic[State]):
     def children_ucts(self) -> np.ndarray:
         return self.children_qs + self.children_us
 
-    def best_child(self) -> _Node[State]:
+    def best_child(self) -> _Node:
         if isinstance(self.state.turn_state, GameTurn):
             action = list(
                 randomly_sample_distribution(self.action_probabilities.items(), 1)
@@ -76,7 +76,7 @@ class _Node(Generic[State]):
             assert not isinstance(self.state.turn_state, GameOverTurn)
             assert_never(self.state.turn_state)
 
-    def select_leaf(self) -> _Node[State]:
+    def select_leaf(self) -> _Node:
         current_node = self
         while current_node.expanded and not current_node.terminal:
             current_node = current_node.best_child()
@@ -90,7 +90,10 @@ class _Node(Generic[State]):
     def terminal(self) -> bool:
         return self.state.is_game_over()
 
-    def expand(self) -> _Node[State]:
+    def expand(self) -> _Node:
+        if self.expanded:
+            return self
+
         if isinstance(self.state.turn_state, GameTurn):
             action = next(
                 randomly_sample_distribution(
@@ -115,21 +118,22 @@ class _Node(Generic[State]):
         while current_node.parent is not None:
             current_node.parent[0].children_visits[current_node.parent[1]] += 1
             current_node.visits += 1
-            if isinstance(current_node.state.turn_state, GameTurn):
+            if isinstance(current_node.state.turn_state, PlayerTurn):
+                current_node.parent[0].children_utilities[
+                    current_node.parent[1]
+                ] += utility[current_node.state.turn_state.player]
+            elif isinstance(current_node.state.turn_state, GameOverTurn) or isinstance(
+                current_node.state.turn_state, GameTurn
+            ):
                 pass
-            elif isinstance(current_node.state.turn_state, PlayerTurn):
-                current_node.parent[0].children_utilities[current_node.parent[1]] += utility[
-                    current_node.state.turn_state.player
-                ]
             else:
-                assert not isinstance(current_node.state.turn_state, GameOverTurn)
                 assert_never(current_node.state.turn_state)
             current_node = current_node.parent[0]
         current_node.visits += 1
 
 
 @dataclass  # type: ignore
-class MctsActor(AiActor[State], ABC):
+class MctsActor(AiActor[KnownState], ABC):
     """
     Based on:
     https://en.wikipedia.org/wiki/Monte_Carlo_tree_search#Principle_of_operation
@@ -138,7 +142,7 @@ class MctsActor(AiActor[State], ABC):
     """
 
     iterations: int
-    tree: _Node[State] = None  # type: ignore
+    tree: _Node = None  # type: ignore
 
     def __post_init__(self) -> None:
         if self.tree is None:
@@ -159,18 +163,20 @@ class MctsActor(AiActor[State], ABC):
             winner = self._get_state_winner(leaf.state)  # simulation
             leaf.backup(winner)  # backup
         best_child_index: int = np.argmax(self.tree.children_qs)  # type: ignore
-        return next(itertools.islice(self.tree.children.keys(), best_child_index, None))
+        action = next(
+            itertools.islice(self.tree.children.keys(), best_child_index, None)
+        )
+        print(action)
+        return action
 
-    @classmethod
     @abstractmethod
-    def _get_state_winner(cls, state: State) -> Utility:
+    def _get_state_winner(self, state: KnownState) -> Utility:
         pass
 
 
 @dataclass
-class BasicMctsActor(MctsActor[State]):
-    @classmethod
-    def _get_state_winner(cls, state: State) -> Utility:
+class BasicMctsActor(MctsActor):
+    def _get_state_winner(self, state: KnownState) -> Utility:
         current_state = state
         while not current_state.is_game_over():
             legal_actions = current_state.get_legal_actions()
@@ -184,3 +190,11 @@ class BasicMctsActor(MctsActor[State]):
                 action = random.choice([a.action for a in legal_actions])
             current_state = current_state.next_state(action)
         return Utility({current_state.winner(): 1})
+
+
+@dataclass
+class UfMctsActor(MctsActor):
+    utility_function: UtilityFunction = ExpectedScoreUf()
+
+    def _get_state_winner(self, state: KnownState) -> Utility:
+        return self.utility_function(state)

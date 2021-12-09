@@ -16,11 +16,12 @@ from typing import (
     FrozenSet,
     Collection,
     List,
+    Set,
 )
 
 from trains.game.box import TrainCards, Route, TrainCard, City, Box
 from trains.game.clusters import Clusters
-from trains.mypy_util import cache
+from trains.mypy_util import cache, add_slots
 
 
 def sufficient_cards_to_build(
@@ -69,9 +70,8 @@ def probability_of_having_cards(
     specified size, with the given distribution.
     """
 
-    needed_colors = tuple(cards.keys())
-    needed_cards = tuple(cards[color] for color in needed_colors)
-    favorables = tuple(pile_distribution[color] for color in needed_colors)
+    needed_cards = tuple(cards.values())
+    favorables = tuple(pile_distribution[color] for color in cards.keys())
     total_favorables = sum(favorables)
     total_unfavorables = pile_distribution.total - total_favorables
 
@@ -140,7 +140,8 @@ def _probability_of_having_cards_helper(
 _T = TypeVar("_T")
 
 
-@dataclass
+@add_slots
+@dataclass(frozen=True)
 class Cons(Generic[_T]):
     head: _T
     rest: Optional[Cons[_T]]
@@ -154,9 +155,9 @@ class Cons(Generic[_T]):
 
     @staticmethod
     def iterate(l: Optional[Cons[_T]]) -> Generator[_T, None, None]:
-        if l is not None:
+        while l is not None:
             yield l.head
-            yield from Cons.iterate(l.rest)
+            l = l.rest
 
 
 def randomly_sample_distribution(
@@ -171,13 +172,14 @@ def randomly_sample_distribution(
         rand = random.random() * total
         i = 0
         cum = collected[i][1]
-        while rand < cum and i < len(collected) - 1:
+        while rand > cum and i < len(collected) - 1:
             i += 1
             cum += collected[i][1]
         yield collected[i][0]
 
 
-@dataclass(order=True)
+@add_slots
+@dataclass(order=True, frozen=True)
 class PrioritizedItem(Generic[_T]):
     priority: int
     item: _T = field(compare=False)
@@ -218,6 +220,7 @@ def best_routes(
     frontier: List[
         PrioritizedItem[Tuple[FrozenSet[City], Optional[Cons[Route]], int]]
     ] = []
+    frontier_set: Set[Tuple[FrozenSet[City], Optional[Cons[Route]], int]] = set()
     queue_item: PrioritizedItem[
         Tuple[FrozenSet[City], Optional[Cons[Route]], int]
     ] = PrioritizedItem(0, (start, None, 0))
@@ -233,7 +236,11 @@ def best_routes(
 
         for current_city in current_cluster:
             for successor, route in box.board.routes_from_city(current_city):
-                if successor not in current_cluster and route not in blocked_routes:
+                if (
+                    successor not in current_cluster
+                    and route not in blocked_routes
+                    and route not in Cons.iterate(current_path)
+                ):
                     successor_cluster = player_built_routes.get_cluster_for_city(
                         successor
                     )

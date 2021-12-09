@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import itertools
+from collections import defaultdict
+
 import math
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
@@ -13,7 +15,7 @@ from typing import (
     Callable,
     Optional,
     Tuple,
-    Union,
+    Union, DefaultDict,
 )
 
 from frozendict import frozendict
@@ -22,9 +24,11 @@ from trains.game.action import Action
 from trains.game.box import DestinationCard, TrainCards, Player, Box, TrainCard, Route
 from trains.game.clusters import Clusters
 from trains.game.turn import TurnState, GameOverTurn
-from trains.util import Cons, probability_of_having_cards
+from trains.mypy_util import add_slots
+from trains.util import Cons, probability_of_having_cards, randomly_sample_distribution
 
 
+@add_slots
 @dataclass(frozen=True)
 class ObservedHandState:
     known_destination_cards: FrozenSet[DestinationCard]
@@ -40,6 +44,7 @@ class ObservedHandState:
     known_incomplete_destination_cards: FrozenSet[DestinationCard]
 
 
+@add_slots
 @dataclass(frozen=True)
 class KnownHandState:
     destination_cards: FrozenSet[DestinationCard]
@@ -170,6 +175,20 @@ class AbstractState(ABC):
     def _deal_train_cards(
         cls, cards: int, deck: TrainCards
     ) -> Generator[Tuple[TrainCards, float], None, None]:
+        results: DefaultDict[TrainCards, int] = defaultdict(int)
+        mc_count = 100
+        for _ in range(mc_count):
+            result: DefaultDict[TrainCard, int] = defaultdict(int)
+            current_deck = dict(deck)
+            for _ in range(min(cards, deck.total)):
+                drawn_card = next(randomly_sample_distribution(current_deck.items(), 1))
+                current_deck[drawn_card] -= 1
+                result[drawn_card] += 1
+            results[TrainCards(result)] += 1
+        for drawn_cards, count in results.items():
+            yield drawn_cards, count / mc_count
+        return None
+
         def _deal_train_cards_helper(
             remaining_cards: int,
             current_deck: Optional[Cons[Tuple[TrainCard, int]]],

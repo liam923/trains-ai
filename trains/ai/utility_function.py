@@ -13,7 +13,8 @@ from typing import (
     DefaultDict,
     Tuple,
     Type,
-    Generic, Mapping,
+    Generic,
+    Mapping,
 )
 
 import math
@@ -130,7 +131,7 @@ class ExpectedScoreUf(UtilityFunction[AbstractState]):
         distance_normalizer: see _calculate_additional_known_destination_cards_score
     """
 
-    discount: float = 0.9  # unscientifically chosen
+    discount: float = 1  # unscientifically chosen
     distance_normalizer: Callable[[float], float] = (
         lambda x: x ** 0.9
     )  # obtained by playing around with desmos

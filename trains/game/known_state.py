@@ -533,7 +533,6 @@ class KnownState(AbstractState):
             if self.destination_card_pile_size > 0:
                 yield KnownState.LegalAction(gaction.DestinationCardPickAction())
             yield from get_train_card_draw_actions()
-            yield KnownState.LegalAction(gaction.PassAction())
             yield from get_build_actions(self.turn_state.player)
         elif isinstance(self.turn_state, gturn.PlayerTrainCardDrawMidTurn):
             yield from get_train_card_draw_actions(second=True)

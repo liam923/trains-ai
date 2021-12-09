@@ -229,6 +229,7 @@ D_F = _small_board_route(D, F)
             small_box,
             frozenset({frozenset({C_D_blue}), frozenset({C_D_grey})}),
         ),
+        (C, F, (A_C,), (D_F,), small_box, tuple())
     ],
 )
 def test_best_routes(
