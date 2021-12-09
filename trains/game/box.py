@@ -24,15 +24,18 @@ from trains.mypy_util import cache, add_slots
 class Color:
     name: str
 
+
 @add_slots
 @dataclass(frozen=True)
 class Player:
     name: str
 
+
 @add_slots
 @dataclass(frozen=True)
 class City:
     name: str
+
 
 @add_slots
 @dataclass(frozen=True)
@@ -41,6 +44,7 @@ class Route:
     color: Optional[Color]  # None represents a gray route (any color can be used)
     length: int
     id: uuid.UUID = field(default_factory=lambda: uuid.uuid4())
+
 
 @add_slots
 @dataclass(frozen=True)
@@ -130,6 +134,7 @@ class Board:
         return frozendict(
             (city, frozenset(routes)) for city, routes in city_to_routes.items()
         )
+
 
 @add_slots
 @dataclass(frozen=True)

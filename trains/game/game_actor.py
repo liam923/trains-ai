@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import itertools
-import operator
 import random
 from abc import ABC
 from collections import defaultdict
@@ -14,7 +12,6 @@ from typing import (
     Union,
     FrozenSet,
     Iterable,
-    Tuple,
     DefaultDict,
 )
 

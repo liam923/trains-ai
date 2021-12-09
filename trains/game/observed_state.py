@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import itertools
-import math
 from dataclasses import dataclass, replace
 from typing import (
     FrozenSet,
@@ -14,6 +13,8 @@ from typing import (
     Callable,
 )
 
+import math
+
 import trains.game.action as gaction
 import trains.game.turn as gturn
 from trains.error import TrainsException
@@ -21,7 +22,6 @@ from trains.game.action import Action
 from trains.game.box import (
     DestinationCard,
     Player,
-    Route,
     TrainCards,
     Box,
     Color,

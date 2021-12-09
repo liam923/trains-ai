@@ -1,13 +1,11 @@
 from __future__ import annotations
 
 import itertools
-from abc import ABC, abstractmethod
-
-import math
 import random
+from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from functools import partial
-from typing import Dict, Generic, Optional, Tuple
+from typing import Dict, Optional, Tuple
 
 import numpy as np
 from tqdm import tqdm
@@ -15,7 +13,6 @@ from tqdm import tqdm
 from trains.ai.actor import AiActor
 from trains.ai.utility_function import Utility, UtilityFunction, ExpectedScoreUf
 from trains.game.action import Action
-from trains.game.box import Player
 from trains.game.known_state import KnownState
 from trains.game.turn import GameTurn, GameOverTurn, PlayerTurn
 from trains.mypy_util import assert_never

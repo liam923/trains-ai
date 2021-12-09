@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import itertools
-import math
 from dataclasses import dataclass, replace
 from typing import (
     Callable,
@@ -14,15 +13,16 @@ from typing import (
     Iterable,
 )
 
+import math
 from frozendict import frozendict
 
 import trains.game.action as gaction
 import trains.game.turn as gturn
 from trains.error import TrainsException
 from trains.game.action import Action
-from trains.game.box import Player, DestinationCard, Box, TrainCards, Route, Color
+from trains.game.box import Player, DestinationCard, Box, TrainCards, Color
 from trains.game.clusters import Clusters
-from trains.game.state import AbstractState, State, ObservedHandState, KnownHandState
+from trains.game.state import AbstractState, State, KnownHandState
 from trains.game.turn import TurnState
 from trains.mypy_util import assert_never
 from trains.util import (

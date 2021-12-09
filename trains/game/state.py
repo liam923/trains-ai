@@ -1,10 +1,8 @@
 from __future__ import annotations
 
 import itertools
-from collections import defaultdict
-
-import math
 from abc import ABC, abstractmethod
+from collections import defaultdict
 from dataclasses import dataclass
 from typing import (
     FrozenSet,
@@ -15,9 +13,11 @@ from typing import (
     Callable,
     Optional,
     Tuple,
-    Union, DefaultDict,
+    Union,
+    DefaultDict,
 )
 
+import math
 from frozendict import frozendict
 
 from trains.game.action import Action
@@ -25,7 +25,7 @@ from trains.game.box import DestinationCard, TrainCards, Player, Box, TrainCard,
 from trains.game.clusters import Clusters
 from trains.game.turn import TurnState, GameOverTurn
 from trains.mypy_util import add_slots
-from trains.util import Cons, probability_of_having_cards, randomly_sample_distribution
+from trains.util import randomly_sample_distribution
 
 
 @add_slots
@@ -175,6 +175,8 @@ class AbstractState(ABC):
     def _deal_train_cards(
         cls, cards: int, deck: TrainCards
     ) -> Generator[Tuple[TrainCards, float], None, None]:
+        # this function was very slow, so I replaced it with a monte-carlo solution
+        # the original code is below
         results: DefaultDict[TrainCards, int] = defaultdict(int)
         mc_count = 100
         for _ in range(mc_count):
@@ -189,25 +191,25 @@ class AbstractState(ABC):
             yield drawn_cards, count / mc_count
         return None
 
-        def _deal_train_cards_helper(
-            remaining_cards: int,
-            current_deck: Optional[Cons[Tuple[TrainCard, int]]],
-            deal_so_far: Optional[Cons[Tuple[TrainCard, int]]] = None,
-        ) -> Generator[TrainCards, None, None]:
-            if remaining_cards == 0 or current_deck is None:
-                yield TrainCards(Cons.iterate(deal_so_far))
-            else:
-                color, color_cards = current_deck.head
-                max_count = max(color_cards, remaining_cards)
-                for count in range(0, max_count + 1):
-                    yield from _deal_train_cards_helper(
-                        remaining_cards - count,
-                        current_deck.rest,
-                        Cons((color, count), deal_so_far),
-                    )
-
-        for train_cards in _deal_train_cards_helper(cards, Cons.make(deck.items())):
-            yield train_cards, probability_of_having_cards(train_cards, cards, deck)
+        # def _deal_train_cards_helper(
+        #     remaining_cards: int,
+        #     current_deck: Optional[Cons[Tuple[TrainCard, int]]],
+        #     deal_so_far: Optional[Cons[Tuple[TrainCard, int]]] = None,
+        # ) -> Generator[TrainCards, None, None]:
+        #     if remaining_cards == 0 or current_deck is None:
+        #         yield TrainCards(Cons.iterate(deal_so_far))
+        #     else:
+        #         color, color_cards = current_deck.head
+        #         max_count = max(color_cards, remaining_cards)
+        #         for count in range(0, max_count + 1):
+        #             yield from _deal_train_cards_helper(
+        #                 remaining_cards - count,
+        #                 current_deck.rest,
+        #                 Cons((color, count), deal_so_far),
+        #             )
+        #
+        # for train_cards in _deal_train_cards_helper(cards, Cons.make(deck.items())):
+        #     yield train_cards, probability_of_having_cards(train_cards, cards, deck)
 
     @classmethod
     def _deal_destination_cards(
