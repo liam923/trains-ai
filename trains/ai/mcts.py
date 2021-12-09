@@ -156,11 +156,9 @@ class MctsActor(AiActor[KnownState], ABC):
             winner = self._get_state_winner(leaf.state)  # simulation
             leaf.backup(winner)  # backup
         best_child_index: int = np.argmax(self.tree.children_qs)  # type: ignore
-        action = next(
+        return next(
             itertools.islice(self.tree.children.keys(), best_child_index, None)
         )
-        print(action)
-        return action
 
     @abstractmethod
     def _get_state_winner(self, state: KnownState) -> Utility:
@@ -188,17 +186,6 @@ class BasicMctsActor(MctsActor):
 @dataclass
 class UfMctsActor(MctsActor):
     utility_function: UtilityFunction = ExpectedScoreUf()
-
-    def get_action(self) -> Action:
-        action = super().get_action()
-
-        print(f"Current: {self.utility_function(self.state)[self.player]}")
-        for pos_action in self.state.get_legal_actions():
-            print(
-                f"{pos_action.action}: {self.utility_function(self.state.next_state(pos_action.action))[self.player]}"
-            )
-
-        return action
 
     def _get_state_winner(self, state: KnownState) -> Utility:
         return self.utility_function(state)

@@ -3,7 +3,8 @@ from __future__ import annotations
 import functools
 import operator
 from abc import abstractmethod, ABC
-from dataclasses import dataclass
+from collections import defaultdict
+from dataclasses import dataclass, replace
 from typing import (
     Callable,
     Dict,
@@ -19,13 +20,14 @@ from typing import (
 
 import math
 
+import trains.game.turn as gturn
 from trains.game.box import Player, Box
 from trains.game.state import (
     AbstractState,
     State,
     HandState,
 )
-from trains.mypy_util import cache
+from trains.mypy_util import cache, assert_never
 from trains.util import (
     cards_needed_to_build_routes,
     best_routes_between_cities,
@@ -149,11 +151,43 @@ class ExpectedScoreUf(UtilityFunction[AbstractState]):
     )  # obtained by playing around with desmos: https://www.desmos.com/calculator/lzes35garz
 
     def calculate_utility(self, state: AbstractState) -> Utility:
+        extra_train_cards: DefaultDict[Player, int] = defaultdict(int)
+        extra_destination_cards: DefaultDict[Player, int] = defaultdict(int)
+
+        if (
+            isinstance(state.turn_state, gturn.PlayerStartTurn)
+            or isinstance(
+                state.turn_state, gturn.PlayerInitialDestinationCardChoiceTurn
+            )
+            or isinstance(state.turn_state, gturn.RevealFinalDestinationCardsTurn)
+            or isinstance(state.turn_state, gturn.InitialTurn)
+            or isinstance(state.turn_state, gturn.PlayerDestinationCardDrawMidTurn)
+        ):
+            pass
+        elif isinstance(state.turn_state, gturn.GameOverTurn):
+            return Utility(
+                {
+                    player: hand.known_points_so_far
+                    for player, hand in state.player_hands.items()
+                }
+            )
+        elif isinstance(state.turn_state, gturn.PlayerTrainCardDrawMidTurn):
+            extra_train_cards[state.turn_state.player] += 1
+        elif isinstance(state.turn_state, gturn.TrainCardDealTurn):
+            if state.turn_state.to_player is not None:
+                extra_train_cards[state.turn_state.to_player] += 1
+            if isinstance(state.turn_state.next_turn_state, gturn.PlayerTrainCardDrawMidTurn):
+                extra_train_cards[state.turn_state.next_turn_state.player] += 1
+        elif isinstance(state.turn_state, gturn.DestinationCardDealTurn):
+            extra_destination_cards[state.turn_state.to_player] += state.box.dealt_destination_cards_range[1]
+        else:
+            assert_never(state.turn_state)
+
         remaining_moves = self._calculate_remaining_turns(state)
         utilities: Dict[Optional[Player], float] = {
             player: hand.known_points_so_far
             + self.discount
-            * self._calculate_additional_score(state, remaining_moves, player, hand)
+            * self._calculate_additional_score(state, remaining_moves, player, hand, extra_train_cards=extra_train_cards[player], extra_destination_cards=extra_destination_cards[player])
             for player, hand in state.player_hands.items()
         }
         return Utility(utilities)
@@ -176,18 +210,19 @@ class ExpectedScoreUf(UtilityFunction[AbstractState]):
         remaining_moves: float,
         player: Player,
         hand: HandState,
+        extra_train_cards: int,
+        extra_destination_cards: int,
     ) -> float:
         return self._calculate_additional_route_building_score(
-            state, remaining_moves, player, hand
+            state, remaining_moves, hand
         ) + self._calculate_additional_destination_cards_score(
-            state, remaining_moves, player, hand
+            state, remaining_moves, player, hand, extra_train_cards=extra_train_cards, extra_destination_cards=extra_destination_cards
         )
 
     def _calculate_additional_route_building_score(
         self,
         state: AbstractState,
         remaining_moves: float,
-        player: Player,
         hand: HandState,
     ) -> float:
         # draw_turns = turns - building_turns
@@ -202,11 +237,7 @@ class ExpectedScoreUf(UtilityFunction[AbstractState]):
             - self._average_leftover_train_cards(state.box)
         ) / (
             self._average_route_length(state.box)
-            * (
-                1
-                + self._average_cards_per_draw_turn(state.box)
-                / self._average_route_length(state.box)
-            )
+            + self._average_cards_per_draw_turn(state.box)
         )
         return self._average_route_value(state.box) * building_turns
 
@@ -216,8 +247,16 @@ class ExpectedScoreUf(UtilityFunction[AbstractState]):
         remaining_moves: float,
         player: Player,
         hand: HandState,
+        extra_train_cards: int,
+        extra_destination_cards: int,
     ) -> float:
-        unknown_count = hand.destination_cards_count - len(hand.known_destination_cards)
+        unknown_count = (
+            hand.destination_cards_count
+            - len(hand.known_destination_cards)
+            + (hand.unselected_destination_cards_count + extra_destination_cards)
+            * self._average_kept_destination_card_proportion(state.box)
+        )
+        train_cards_count = hand.train_cards_count + extra_train_cards
 
         # Ideally want to find minimum number of trains to complete all destination
         # cards, but it is an NP-Hard problem (travelling salesman reduces to it).
@@ -251,7 +290,7 @@ class ExpectedScoreUf(UtilityFunction[AbstractState]):
                 (
                     max(
                         cards_needed_to_build_routes(hand.known_train_cards, route_set)
-                        - (hand.train_cards_count - hand.known_train_cards.total),
+                        - (train_cards_count - hand.known_train_cards.total),
                         0,
                     )
                     for route_set in route_sets
@@ -270,7 +309,7 @@ class ExpectedScoreUf(UtilityFunction[AbstractState]):
         cards_to_finish = max(
             total_distance
             + self._average_leftover_train_cards(state.box)
-            - hand.train_cards_count,
+            - train_cards_count,
             0,
         )
         turns_to_draw = cards_to_finish / self._average_cards_per_draw_turn(state.box)
@@ -296,13 +335,9 @@ class ExpectedScoreUf(UtilityFunction[AbstractState]):
     @staticmethod
     @cache
     def _average_route_value(box: Box) -> float:
-        # weighted by route length
-        weighted_values = sum(
-            route.length * box.route_point_values[route.length]
-            for route in box.board.routes
-        )
-        total_weight = sum(route.length for route in box.board.routes)
-        return weighted_values / total_weight
+        return sum(
+            box.route_point_values[route.length] for route in box.board.routes
+        ) / len(box.board.routes)
 
     @staticmethod
     @cache
@@ -314,6 +349,13 @@ class ExpectedScoreUf(UtilityFunction[AbstractState]):
     def _average_leftover_train_cards(box: Box) -> float:
         return len(box.colors) / 3
 
+    @staticmethod
+    @cache
+    def _average_kept_destination_card_proportion(box: Box) -> float:
+        return (
+            box.dealt_destination_cards_range[0] + box.dealt_destination_cards_range[1]
+        ) / 2
+
 
 class ImprovedExpectedScoreUf(ExpectedScoreUf):
     def _calculate_additional_destination_cards_score(
@@ -322,39 +364,53 @@ class ImprovedExpectedScoreUf(ExpectedScoreUf):
         remaining_moves: float,
         player: Player,
         hand: HandState,
+            extra_train_cards: int,
+            extra_destination_cards: int,
     ) -> float:
-        unknown_count = hand.destination_cards_count - len(hand.known_destination_cards)
+        unknown_count = (
+            hand.destination_cards_count
+            - len(hand.known_destination_cards)
+            + (hand.unselected_destination_cards_count + extra_destination_cards)
+            * self._average_kept_destination_card_proportion(state.box)
+        )
+        train_cards_count = hand.train_cards_count + extra_train_cards
 
         # Use a heuristic to find the minimum number of trains to complete all
         # destination cards.
         opponent_built_routes = [
             route for route, builder in state.built_routes.items() if builder != player
         ]
+
+        known_cards_needed = 0
+        known_distance = 0
         paths = best_routes_between_many_cities(
             (tuple(card.cities) for card in hand.known_incomplete_destination_cards),  # type: ignore
             state.built_clusters[player],
             opponent_built_routes,
             state.box,
         )
-        distance_per_path = (
-            max(
-                cards_needed_to_build_routes(hand.known_train_cards, path)
-                - (hand.train_cards_count - hand.known_train_cards.total),
-                0,
+        for path in paths:
+            cards_needed = max(
+                cards_needed_to_build_routes(hand.known_train_cards, path), 0
             )
-            for path in paths
-        )
+            distance = sum(route.length for route in path)
 
-        known_summed_distances = min(distance_per_path, default=0)
-        unknown_summed_distances = self._average_route_length(state.box) * unknown_count
-        total_distance = self.distance_normalizer(
-            known_summed_distances + unknown_summed_distances
+            known_cards_needed = max(known_cards_needed, cards_needed)
+            known_distance = max(known_distance, distance)
+        # - (hand.train_cards_count - hand.known_train_cards.total)
+
+        unknown_distance = self.distance_normalizer(
+            self._average_route_length(state.box) * unknown_count
         )
+        unknown_cards_needed = unknown_distance - math.sqrt(train_cards_count)
+
+        total_cards_needed = known_cards_needed + unknown_cards_needed
+        total_distance = known_distance + unknown_distance
 
         cards_to_finish = max(
-            total_distance
+            total_cards_needed
             + self._average_leftover_train_cards(state.box)
-            - hand.train_cards_count,
+            - train_cards_count,
             0,
         )
         turns_to_draw = cards_to_finish / self._average_cards_per_draw_turn(state.box)
@@ -371,3 +427,22 @@ class ImprovedExpectedScoreUf(ExpectedScoreUf):
         return probability_to_complete * (known_values + unknown_values) - (
             1 - probability_to_complete
         ) * (known_values + unknown_values)
+
+
+@dataclass
+class RelativeUf(UtilityFunction):
+    absolute_uf: UtilityFunction
+
+    def calculate_utility(self, state: State) -> Utility:
+        absolute_utility = self.absolute_uf.calculate_utility(state)
+        return Utility(
+            {
+                player: absolute
+                - max(
+                    other_absolute
+                    for other_player, other_absolute in absolute_utility.items()
+                    if player != other_player
+                )
+                for player, absolute in absolute_utility.items()
+            }
+        )

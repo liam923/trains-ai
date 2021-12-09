@@ -8,13 +8,13 @@ from typing import (
     FrozenSet,
     TypeVar,
     Type,
-    Dict,
     Generator,
     Callable,
     Optional,
     Tuple,
     Union,
     DefaultDict,
+    Mapping,
 )
 
 import math
@@ -110,9 +110,7 @@ class AbstractState(ABC):
 
     @property
     @abstractmethod
-    def player_hands(
-        self,
-    ) -> Union[Dict[Player, HandState], frozendict[Player, KnownHandState]]:
+    def player_hands(self) -> Mapping[Player, HandState]:
         pass
 
     @abstractmethod
