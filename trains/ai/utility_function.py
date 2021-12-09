@@ -336,11 +336,14 @@ class ImprovedExpectedScoreUf(ExpectedScoreUf):
             opponent_built_routes,
             state.box,
         )
-        distance_per_path = (max(
-                        cards_needed_to_build_routes(hand.known_train_cards, path)
-                        - (hand.train_cards_count - hand.known_train_cards.total),
-                        0,
-                    ) for path in paths)
+        distance_per_path = (
+            max(
+                cards_needed_to_build_routes(hand.known_train_cards, path)
+                - (hand.train_cards_count - hand.known_train_cards.total),
+                0,
+            )
+            for path in paths
+        )
 
         known_summed_distances = min(distance_per_path, default=0)
         unknown_summed_distances = self._average_route_length(state.box) * unknown_count

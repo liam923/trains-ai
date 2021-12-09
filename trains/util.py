@@ -205,17 +205,23 @@ def best_routes_between_many_cities(
     # the best path between them. Then, recursively find a good path between the
     # remaining pairs of cities, where it is assumed that path has been built.
 
-    candidate_paths: List[Tuple[FrozenSet[Route], Clusters]] = [(frozenset(), player_built_routes)]
+    candidate_paths: List[Tuple[FrozenSet[Route], Clusters]] = [
+        (frozenset(), player_built_routes)
+    ]
     remaining_city_pairs: Set[Tuple[City, City]] = set(city_pairs)
     while len(remaining_city_pairs) != 0:
-        farthest_pair = max(remaining_city_pairs, key=lambda pair: player_built_routes.distance(*pair))
+        farthest_pair = max(
+            remaining_city_pairs, key=lambda pair: player_built_routes.distance(*pair)
+        )
         remaining_city_pairs.remove(farthest_pair)
         city_a, city_b = farthest_pair
 
         best_distance: Optional[int] = None
         new_candidate_paths: List[Tuple[FrozenSet[Route], Clusters]] = []
         for path_so_far, built_routes in candidate_paths:
-            for rest_path in best_routes_between_cities(city_a, city_b, built_routes, opponent_built_routes, box):
+            for rest_path in best_routes_between_cities(
+                city_a, city_b, built_routes, opponent_built_routes, box
+            ):
                 distance = sum(route.length for route in rest_path)
                 if best_distance is None or distance < best_distance:
                     new_candidate_paths = []
@@ -223,12 +229,17 @@ def best_routes_between_many_cities(
                 if distance <= best_distance:
                     additional_built_routes = built_routes
                     for route in rest_path:
-                        additional_built_routes = additional_built_routes.connect(*route.cities)
-                    new_candidate_paths.append((path_so_far | rest_path, additional_built_routes))
+                        additional_built_routes = additional_built_routes.connect(
+                            *route.cities
+                        )
+                    new_candidate_paths.append(
+                        (path_so_far | rest_path, additional_built_routes)
+                    )
         candidate_paths = new_candidate_paths
 
     for path, _ in candidate_paths:
         yield path
+
 
 def best_routes_between_cities(
     from_city: City,

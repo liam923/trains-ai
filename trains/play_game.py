@@ -1,6 +1,4 @@
-from trains.ai.mcts import BasicMctsActor, UfMctsActor
-from trains.ai.random import RandomActor
-from trains.ai.utility_function import ImprovedExpectedScoreUf
+from trains.ai.mcts import BasicMctsActor
 from trains.game.box import Box, Player
 from trains.game.game_actor import play_game, SimulatedGameActor
 from trains.game.player_actor import UserActor

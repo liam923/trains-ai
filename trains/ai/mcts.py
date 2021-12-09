@@ -21,7 +21,6 @@ from trains.util import randomly_sample_distribution
 
 @dataclass
 class _Node:
-
     def __init__(self, state: KnownState, parent: Optional[Tuple[_Node, int]] = None):
         self.state = state
         self.parent = parent
@@ -116,9 +115,9 @@ class _Node:
                 current_node.parent[0].children_utilities[
                     current_node.parent[1]
                 ] += utility[current_node.parent[0].state.turn_state.player]
-            elif isinstance(current_node.parent[0].state.turn_state, GameOverTurn) or isinstance(
-                current_node.parent[0].state.turn_state, GameTurn
-            ):
+            elif isinstance(
+                current_node.parent[0].state.turn_state, GameOverTurn
+            ) or isinstance(current_node.parent[0].state.turn_state, GameTurn):
                 pass
             else:
                 assert_never(current_node.state.turn_state)
@@ -195,7 +194,9 @@ class UfMctsActor(MctsActor):
 
         print(f"Current: {self.utility_function(self.state)[self.player]}")
         for pos_action in self.state.get_legal_actions():
-            print(f"{pos_action.action}: {self.utility_function(self.state.next_state(pos_action.action))[self.player]}")
+            print(
+                f"{pos_action.action}: {self.utility_function(self.state.next_state(pos_action.action))[self.player]}"
+            )
 
         return action
 
