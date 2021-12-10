@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import operator
 import random
 from abc import ABC
 from collections import defaultdict
@@ -539,7 +540,7 @@ class SimulatedGameActor(GameActor):
             self.destination_card_pile.insert(0, card)
 
 
-def play_game(players: Dict[Player, PlayerActor], game: GameActor) -> None:
+def play_game(players: Dict[Player, PlayerActor], game: GameActor, print_result: bool = True) -> Optional[Player]:
     actors: List[Actor] = list(players.values()) + [game]  # type: ignore
 
     history = []
@@ -564,5 +565,18 @@ def play_game(players: Dict[Player, PlayerActor], game: GameActor) -> None:
             for actor in actors:
                 actor.observe_action(action)
 
+    if print_result:
+        for player, score in game.scores.items():
+            print(f"{player} scored {score}")
+
+
+    best_score = max(game.scores.values())
+    best_scorers = []
     for player, score in game.scores.items():
-        print(f"{player} scored {score}")
+        if score >= best_score:
+            best_scorers.append(player)
+
+    if len(best_scorers) > 1:
+        return None
+    else:
+        return best_scorers[0]

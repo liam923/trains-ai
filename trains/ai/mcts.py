@@ -136,6 +136,7 @@ class MctsActor(AiActor[State], ABC):
 
     iterations: int
     tree: _Node = None  # type: ignore
+    show_progress: bool = True
 
     def __post_init__(self) -> None:
         if self.tree is None:
@@ -150,7 +151,10 @@ class MctsActor(AiActor[State], ABC):
             self.tree = _Node(self.tree.state.next_state(action))
 
     def _get_action(self) -> Action:
-        for _ in tqdm(range(self.iterations), desc="Thinking"):
+        iterations = range(self.iterations)
+        if self.show_progress:
+            iterations = tqdm(iterations, desc="Thinking")
+        for _ in iterations:
             leaf = self.tree.select_leaf()  # selection
             leaf = leaf.expand()  # expansion
             winner = self._get_state_utilities(leaf.state)  # simulation
