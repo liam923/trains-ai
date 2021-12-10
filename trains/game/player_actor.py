@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import argparse
-from abc import ABC
+from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import Optional, Callable, FrozenSet, TypeVar, Type, Any, Generic
 
@@ -25,6 +25,7 @@ class PlayerActor(Generic[State], Actor, ABC):
 
     state: State
     player: Player
+    should_print_state: bool
 
     @classmethod
     def make(
@@ -32,10 +33,26 @@ class PlayerActor(Generic[State], Actor, ABC):
         box: Box,
         player: Player,
         state_type: Type[AbstractState] = KnownState,
+        print_state: bool = True,
         **kwargs: Any,
     ) -> _PlayerActor:
         state = state_type.make(box, player)
-        return cls(box=box, state=state, player=player, turn_state=state.turn_state, **kwargs)  # type: ignore
+        return cls(box=box, state=state, player=player, should_print_state=print_state, turn_state=state.turn_state, **kwargs)  # type: ignore
+
+    def get_action(self) -> Action:
+        if isinstance(self.turn_state, gturn.PlayerTurn):
+            if self.should_print_state:
+                print()
+                self.print_state()
+                print()
+
+            return self._get_action()
+        else:
+            raise TrainsException(f"Unexpected turn state {type(self.turn_state)}")
+
+    @abstractmethod
+    def _get_action(self) -> Action:
+        pass
 
     def validate_action(self, action: Action) -> Optional[str]:
         return None
@@ -43,21 +60,6 @@ class PlayerActor(Generic[State], Actor, ABC):
     def observe_action(self, action: Action) -> None:
         self.state = self.state.next_state(action)
         self.turn_state = self.state.turn_state
-
-
-class UserActor(PlayerActor):
-    def get_action(self) -> Action:
-        if isinstance(self.turn_state, gturn.PlayerTurn):
-            print()
-            self.print_state()
-            print()
-            while True:
-                try:
-                    return self.parse_action(input("Enter action: "))
-                except ParserException as error:
-                    print(f"Error parsing action: {error}")
-        else:
-            raise TrainsException(f"Unexpected turn state {type(self.turn_state)}")
 
     def print_state(self) -> None:
         colors = ", ".join(
@@ -83,10 +85,26 @@ class UserActor(PlayerActor):
         )
         print(f"Face up train cards: {colors}")
 
-        # TODO: for AI debugging; take out later
-        print(
-            f"Opponent destination cards: {[[f'{card.cities_list[0].name}->{card.cities_list[1].name} for {card.value}' for card in hand.known_destination_cards] for player, hand in self.state.player_hands.items() if player != self.player]}"
-        )
+        for player, hand in self.state.player_hands.items():
+            if player != self.player:
+                colors = ", ".join(
+                    f"{count} {'wildcard' if color is None else color.name}"
+                    for color, count in hand.known_train_cards.items()
+                    if count > 0
+                )
+                print(f"{player.name} cards in hand: {colors}")
+                print(
+                    f"{player.name} destination cards: {', '.join(f'{card.cities_list[0].name}->{card.cities_list[1].name} for {card.value}' for card in hand.known_destination_cards)}"
+                )
+
+
+class UserActor(PlayerActor):
+    def _get_action(self) -> Action:
+        while True:
+            try:
+                return self.parse_action(input("Enter action: "))
+            except ParserException as error:
+                print(f"Error parsing action: {error}")
 
     def observe_action(self, action: Action) -> None:
         if isinstance(self.turn_state, gturn.PlayerTurn):

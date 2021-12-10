@@ -16,10 +16,10 @@ from trains.util import randomly_sample_distribution
 
 
 @dataclass
-class MctsExpectiminimaxActor(AiActor):
+class McExpectiminimaxActor(AiActor):
     """
-    An AI actor that can function as both a simple monte carlo tree search actor or as
-    an expectimax actor. At each step, the breadth function is called to determine
+    An AI actor that can function as both a simple expectimax actor or as a monte-carlo
+    expectimax actor. At each step, the breadth function is called to determine
     what the branching factor should be for that step. If it is None, it allows
     unlimited branching, which is expectiminimax. If it is an integer, it performs that
     number of monte carlo samples.
@@ -31,8 +31,9 @@ class MctsExpectiminimaxActor(AiActor):
     ]
     depth: int
     breadth: Callable[[int], Optional[int]] = field(default=lambda x: None)
+    assume_states: bool = True
 
-    def get_action(self) -> Action:
+    def _get_action(self) -> Action:
         action = self._score_state(self.state, self.depth - 1)[1]
         assert (
             action is not None
@@ -63,7 +64,7 @@ class MctsExpectiminimaxActor(AiActor):
         if current_depth <= 0 or isinstance(state.turn_state, gturn.GameOverTurn):
             return self.utility_function(state), None, None
         elif isinstance(state.turn_state, gturn.PlayerTurn):
-            if state.hand_is_known(state.turn_state.player):
+            if state.hand_is_known(state.turn_state.player) or not self.assume_states:
                 # if we know the player's hand, then we can perform the action with the
                 # highest utility for the current player
                 successors = (

@@ -176,10 +176,14 @@ class ExpectedScoreUf(UtilityFunction[AbstractState]):
         elif isinstance(state.turn_state, gturn.TrainCardDealTurn):
             if state.turn_state.to_player is not None:
                 extra_train_cards[state.turn_state.to_player] += 1
-            if isinstance(state.turn_state.next_turn_state, gturn.PlayerTrainCardDrawMidTurn):
+            if isinstance(
+                state.turn_state.next_turn_state, gturn.PlayerTrainCardDrawMidTurn
+            ):
                 extra_train_cards[state.turn_state.next_turn_state.player] += 1
         elif isinstance(state.turn_state, gturn.DestinationCardDealTurn):
-            extra_destination_cards[state.turn_state.to_player] += state.box.dealt_destination_cards_range[1]
+            extra_destination_cards[
+                state.turn_state.to_player
+            ] += state.box.dealt_destination_cards_range[1]
         else:
             assert_never(state.turn_state)
 
@@ -187,7 +191,14 @@ class ExpectedScoreUf(UtilityFunction[AbstractState]):
         utilities: Dict[Optional[Player], float] = {
             player: hand.known_points_so_far
             + self.discount
-            * self._calculate_additional_score(state, remaining_moves, player, hand, extra_train_cards=extra_train_cards[player], extra_destination_cards=extra_destination_cards[player])
+            * self._calculate_additional_score(
+                state,
+                remaining_moves,
+                player,
+                hand,
+                extra_train_cards=extra_train_cards[player],
+                extra_destination_cards=extra_destination_cards[player],
+            )
             for player, hand in state.player_hands.items()
         }
         return Utility(utilities)
@@ -216,7 +227,12 @@ class ExpectedScoreUf(UtilityFunction[AbstractState]):
         return self._calculate_additional_route_building_score(
             state, remaining_moves, hand
         ) + self._calculate_additional_destination_cards_score(
-            state, remaining_moves, player, hand, extra_train_cards=extra_train_cards, extra_destination_cards=extra_destination_cards
+            state,
+            remaining_moves,
+            player,
+            hand,
+            extra_train_cards=extra_train_cards,
+            extra_destination_cards=extra_destination_cards,
         )
 
     def _calculate_additional_route_building_score(
@@ -364,8 +380,8 @@ class ImprovedExpectedScoreUf(ExpectedScoreUf):
         remaining_moves: float,
         player: Player,
         hand: HandState,
-            extra_train_cards: int,
-            extra_destination_cards: int,
+        extra_train_cards: int,
+        extra_destination_cards: int,
     ) -> float:
         unknown_count = (
             hand.destination_cards_count
