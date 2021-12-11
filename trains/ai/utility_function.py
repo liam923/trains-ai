@@ -4,7 +4,7 @@ import functools
 import operator
 from abc import abstractmethod, ABC
 from collections import defaultdict
-from dataclasses import dataclass, replace
+from dataclasses import dataclass
 from typing import (
     Callable,
     Dict,

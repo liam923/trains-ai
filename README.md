@@ -196,3 +196,15 @@ The most immediate next step I would make with this project is to create a bette
 Next, I would attempt to speed up the code in order to allow the AI to explore the game tree more. So far, I have profiled the code and done some marginal speedups. However, there are still a few functions that are quite slow (mainly `probability_of_having_cards`) that I would like to optimize.
 
 After that, I believe there is a lot of room for improvement in the utility function. The current utility functions work good enough on a small board, but when the game becomes more complex on a larger board, this is not so true. Fixing this would likely be a lot of work as it would require a lot of trial and error. A way that would be especially interesting to do this would be to create a neural network for this problem. In my research of MCTS, I ran into a few articles that discussed AlphaGo Zero, a DeepMind project that was the successor of AlphaGo. AlphaGo Zero (based on my limited research) uses MCTS as its primary architectue. However, its utility function is a ML model that trained by playing itself many times. Of course, this would be a difficult problem and require a lot of computing power. However, it could be interesting to explore and may produce useful results.
+
+## Usage
+
+This project was developed using python `3.9.7`. Other versions may work, but they are not supported. To install dependencies, run `pip install -r requirements.txt`.
+
+### Play Against the AI
+
+Run `python3 -m trains.play_game` to play against the AI. This will pit you against the UF-MCTS AI using the relative `ImprovedExpectedScoreUf` utility funciton with 10,000 iterations. To modify this, modify the file [`play_game.py`](trains/play_game.py).
+
+### Run Tests
+
+Run `python3 -m pytest -c test_config/pytest.ini` to run the tests.

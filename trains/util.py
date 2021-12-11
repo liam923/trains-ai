@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import heapq
-import math
 import random
 from collections import defaultdict
 from dataclasses import dataclass, field

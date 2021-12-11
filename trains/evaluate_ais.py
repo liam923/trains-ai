@@ -1,6 +1,4 @@
 import csv
-import sys
-from multiprocessing import Pool
 from typing import Dict, Callable, List, Mapping, Tuple, Generator, Any
 
 from tqdm import tqdm
@@ -16,8 +14,6 @@ from trains.ai.utility_function import (
 )
 from trains.game.box import Player, Box
 from trains.game.game_actor import play_game, SimulatedGameActor
-from trains.game.observed_state import ObservedState
-
 
 AiMaker = Callable[[Box, Player], AiActor]
 BoxMaker = Callable[[List[Player]], Box]
