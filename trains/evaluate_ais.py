@@ -9,7 +9,11 @@ from trains.ai.actor import AiActor
 from trains.ai.mc_expectiminimax import McExpectiminimaxActor
 from trains.ai.mcts import UfMctsActor, BasicMctsActor
 from trains.ai.route_building_probability_calculator import DummyRbpc
-from trains.ai.utility_function import RelativeUf, ImprovedExpectedScoreUf, ExpectedScoreUf
+from trains.ai.utility_function import (
+    RelativeUf,
+    ImprovedExpectedScoreUf,
+    ExpectedScoreUf,
+)
 from trains.game.box import Player, Box
 from trains.game.game_actor import play_game, SimulatedGameActor
 from trains.game.observed_state import ObservedState
@@ -83,8 +87,6 @@ def ais_sets_to_compare() -> Generator[Tuple[str, Dict[str, AiMaker]], None, Non
     }
 
 
-
-
 def play_ais(
     ai_a: AiMaker, ai_b: AiMaker, games: int, box_maker: BoxMaker, pbar: Any
 ) -> Tuple[float, float, float, float]:
@@ -139,7 +141,9 @@ def compare_ais(
     with tqdm(total=(len(listed_ais) * (len(listed_ais) + 1)) * games // 2) as pbar:
         for i, (name_b, ai_b) in list(enumerate(listed_ais)):
             for j, (name_a, ai_a) in list(enumerate(listed_ais))[i:]:
-                a_wins, a_score, b_wins, b_score = play_ais(ai_a, ai_b, games, box_maker, pbar)
+                a_wins, a_score, b_wins, b_score = play_ais(
+                    ai_a, ai_b, games, box_maker, pbar
+                )
                 win_results[i + 1].append(f"{a_wins}")
                 if i != j:
                     win_results[j + 1].append(f"{b_wins}")

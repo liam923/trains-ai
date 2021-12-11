@@ -1,4 +1,5 @@
-,Expectiminimax (depth=3),"McExpectiminimax (depth=6, breadth=10)",UF-MCTS (iterations=1000),Basic-MCTS (iterations=200)
+,Average Score,,,
+Playing Against,Expectiminimax (depth=3),"McExpectiminimax (depth=6, breadth=10)",UF-MCTS (iterations=1000),Basic-MCTS (iterations=200)
 Expectiminimax (depth=3),1.05,-0.5,1.1,-0.2
 "McExpectiminimax (depth=6, breadth=10)",-0.45,0.6,0.9,-0.5
 UF-MCTS (iterations=1000),1.35,0.4,1.4,-1.65

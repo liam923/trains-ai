@@ -540,7 +540,9 @@ class SimulatedGameActor(GameActor):
             self.destination_card_pile.insert(0, card)
 
 
-def play_game(players: Dict[Player, PlayerActor], game: GameActor, print_result: bool = True) -> Optional[Player]:
+def play_game(
+    players: Dict[Player, PlayerActor], game: GameActor, print_result: bool = True
+) -> Optional[Player]:
     actors: List[Actor] = list(players.values()) + [game]  # type: ignore
 
     history = []
@@ -568,7 +570,6 @@ def play_game(players: Dict[Player, PlayerActor], game: GameActor, print_result:
     if print_result:
         for player, score in game.scores.items():
             print(f"{player} scored {score}")
-
 
     best_score = max(game.scores.values())
     best_scorers = []

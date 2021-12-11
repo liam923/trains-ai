@@ -29,7 +29,12 @@ if __name__ == "__main__":
             #     # breadth=lambda depth: None if depth >= 1 else 10,
             # ),
             # Player("AI"): UfMctsActor.make(box, Player("AI"), iterations=10000, utility_function=RelativeUf(ImprovedExpectedScoreUf())),
-            Player("AI"): UfMctsActor.make(box, Player("AI"), iterations=100000, utility_function=RelativeUf(ImprovedExpectedScoreUf())),
+            Player("AI"): UfMctsActor.make(
+                box,
+                Player("AI"),
+                iterations=100000,
+                utility_function=RelativeUf(ImprovedExpectedScoreUf()),
+            ),
             # Player("AI"): BasicMctsActor.make(box, Player("AI"), iterations=1000),
             # Player("User"): RandomActor.make(box, Player("User")),
         },

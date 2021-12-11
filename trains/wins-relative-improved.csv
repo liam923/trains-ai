@@ -1,5 +1,6 @@
-,Expectiminimax (depth=3),"McExpectiminimax (depth=6, breadth=10)",UF-MCTS (iterations=1000),Basic-MCTS (iterations=200)
-Expectiminimax (depth=3),0.7,0.525,0.425,0.55
-"McExpectiminimax (depth=6, breadth=10)",0.475,0.6,0.6,0.525
-UF-MCTS (iterations=1000),0.575,0.4,0.4,0.225
-Basic-MCTS (iterations=200),0.45,0.475,0.775,0.4
+,Win Percentage,,,
+Playing Against,Expectiminimax (depth=3),"McExpectiminimax (depth=6, breadth=10)",UF-MCTS (iterations=1000),Basic-MCTS (iterations=200)
+Expectiminimax (depth=3),70%,53%,43%,55%
+"McExpectiminimax (depth=6, breadth=10)",48%,60%,60%,53%
+UF-MCTS (iterations=1000),58%,40%,40%,23%
+Basic-MCTS (iterations=200),45%,48%,78%,40%
